@@ -118,14 +118,47 @@
       padding-top: 10px;
       margin-top: 10px;
     }
-    pre {
-      white-space: pre-wrap;
-      background: #0c0e14;
+    #imagePromptBuilder {
+      background: #1a1c2a;
       padding: 12px;
       border-radius: 14px;
-      max-height: 260px;
-      overflow-y: auto;
-      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    #imagePromptBuilder h3 {
+      margin-top: 0;
+      margin-bottom: 8px;
+      font-size: 18px;
+      font-weight: 700;
+      color: #8b6cff;
+    }
+    #imagePromptBuilder label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+      font-size: 14px;
+      color: #ccc;
+    }
+    #imagePromptBuilder input, #imagePromptBuilder select, #imagePromptBuilder textarea {
+      margin-bottom: 12px;
+      background: #262b3d;
+      color: white;
+      font-size: 15px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: none;
+      width: 100%;
+      box-sizing: border-box;
+      resize: vertical;
+    }
+    #buildImagePromptButton {
+      background: #20a46b;
+      padding: 12px;
+      font-weight: 700;
+      font-size: 16px;
+      border-radius: 14px;
+      cursor: pointer;
+      border: none;
+      margin-bottom: 10px;
     }
   </style>
 </head>
@@ -150,7 +183,47 @@
     <textarea id="message" placeholder="Talk to Chloe..."></textarea>
 
     <input id="imageUrl" placeholder="Optional image URL for Chloe to analyse">
-    <input id="imagePrompt" placeholder="Describe an image for Chloe to generate">
+
+    <div id="imagePromptBuilder">
+      <h3>Image Generation Prompt Builder</h3>
+      <label for="subjectInput">Subject</label>
+      <input id="subjectInput" type="text" placeholder="What is the main subject?">
+
+      <label for="styleInput">Style</label>
+      <select id="styleInput">
+        <option value="">(none)</option>
+        <option>Photorealistic</option>
+        <option>Watercolor</option>
+        <option>Oil painting</option>
+        <option>Pixel art</option>
+        <option>Cyberpunk</option>
+        <option>Minimalist</option>
+        <option>Impressionist</option>
+        <option>Surreal</option>
+        <option>Comic</option>
+        <option>Vintage</option>
+      </select>
+
+      <label for="moodInput">Mood</label>
+      <select id="moodInput">
+        <option value="">(none)</option>
+        <option>Happy</option>
+        <option>Mysterious</option>
+        <option>Dreamy</option>
+        <option>Dark</option>
+        <option>Cheerful</option>
+        <option>Romantic</option>
+        <option>Energetic</option>
+        <option>Calm</option>
+      </select>
+
+      <label for="otherInput">Other Parameters</label>
+      <textarea id="otherInput" placeholder="Add anything else (colors, lighting, background, etc.)"></textarea>
+
+      <button id="buildImagePromptButton">Build Image Prompt</button>
+
+      <textarea id="imagePrompt" placeholder="Generated image prompt" readonly style="height: 70px; background: #333546; color: #ddd;"></textarea>
+    </div>
 
     <button onclick="sendMessage()">Send</button>
     <button onclick="manualGenerateImage()">Generate Image</button>
@@ -187,6 +260,12 @@
     const upgradePanel = document.getElementById("upgradePanel");
     const upgradeRequestBox = document.getElementById("upgradeRequest");
     const upgradePreview = document.getElementById("upgradePreview");
+    
+    const subjectInput = document.getElementById("subjectInput");
+    const styleInput = document.getElementById("styleInput");
+    const moodInput = document.getElementById("moodInput");
+    const otherInput = document.getElementById("otherInput");
+    const buildImagePromptButton = document.getElementById("buildImagePromptButton");
 
     let history = JSON.parse(localStorage.getItem("chloe_history") || "[]");
     let memory = localStorage.getItem("chloe_memory") || "";
@@ -199,6 +278,31 @@
       personality = personalityBox.value;
       localStorage.setItem("chloe_personality", personality);
       addMessage("system", "Personality changed to: " + personalityBox.options[personalityBox.selectedIndex].text);
+    });
+
+    buildImagePromptButton.addEventListener("click", () => {
+      const parts = [];
+      const subject = subjectInput.value.trim();
+      const style = styleInput.value;
+      const mood = moodInput.value;
+      const other = otherInput.value.trim();
+
+      if (subject) {
+        parts.push(`A detailed image of ${subject}`);
+      }
+      if (style) {
+        parts.push(`in a ${style.toLowerCase()} style`);
+      }
+      if (mood) {
+        parts.push(`with a ${mood.toLowerCase()} mood`);
+      }
+      if (other) {
+        parts.push(other);
+      }
+
+      const prompt = parts.join(", ") + ".";
+      imagePromptBox.value = prompt;
+      addMessage("system", "Image prompt built: " + prompt);
     });
 
     function isImageIntent(text) {
