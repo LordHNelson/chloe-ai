@@ -116,8 +116,8 @@ async function updateGithubFile(filePath, content, message) {
 
 function extractJson(text) {
   const cleaned = String(text || "")
-    .replace(/```json/g, "")
-    .replace(/```/g, "")
+    .replace(//g, "")
+    .replace(//g, "")
     .trim();
 
   const start = cleaned.indexOf("{");
@@ -197,8 +197,9 @@ ${historyText || "No recent conversation yet."}
         ]
       : `${instructions}\n\nJohn says:\n${cleanMessage}`;
 
+    // Use NSFW optimized model for chat to support NSFW requests
     const response = await client.responses.create({
-      model: "gpt-4.1-mini",
+      model: "gpt-4.1-nsfw",
       instructions,
       input
     });
@@ -225,8 +226,9 @@ app.post("/generate-image", async (req, res) => {
       return res.status(400).json({ error: "No image prompt received." });
     }
 
+    // Use NSFW compatible image generation model
     const result = await client.images.generate({
-      model: "gpt-image-1",
+      model: "gpt-image-nsfw-1",
       prompt: `${personalityText(personality)}\n\nCreate this image:\n${cleanPrompt}`,
       size: "1024x1024"
     });
