@@ -32,10 +32,12 @@ app.post("/chat", async (req, res) => {
     const reply = response.output[0].content[0].text;
 
     res.json({ reply });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ reply: "Error from Chloe." });
-  }
+catch (err) {
+  console.error("ERROR:", err);
+  res.status(500).json({
+    reply: err.message
+  });
+}
 });
 
 app.get("/", (req, res) => {
