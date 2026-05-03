@@ -10,6 +10,7 @@
       color: white;
       font-family: system-ui, sans-serif;
     }
+
     header {
       padding: 18px 20px;
       font-size: 30px;
@@ -20,6 +21,7 @@
       top: 0;
       z-index: 10;
     }
+
     #status {
       float: right;
       font-size: 14px;
@@ -28,12 +30,14 @@
       border-radius: 999px;
       margin-top: 4px;
     }
+
     #chat {
       height: 48vh;
       overflow-y: auto;
       padding: 18px;
       scroll-behavior: smooth;
     }
+
     .msg {
       max-width: 84%;
       margin: 12px 0;
@@ -43,14 +47,17 @@
       line-height: 1.45;
       font-size: 16px;
     }
+
     .user {
       margin-left: auto;
       background: #8b6cff;
     }
+
     .chloe {
       margin-right: auto;
       background: #252a3d;
     }
+
     .system {
       margin: 12px auto;
       background: transparent;
@@ -58,12 +65,14 @@
       text-align: center;
       font-size: 14px;
     }
+
     .suggestion {
       margin: 12px auto;
       background: #173b2d;
       border: 1px solid #20a46b;
       color: #e9fff5;
     }
+
     .generated-image {
       width: 100%;
       max-width: 100%;
@@ -73,11 +82,13 @@
       display: block;
       object-fit: contain;
     }
+
     #controls {
       padding: 14px;
       border-top: 1px solid #2a2d3a;
       background: #151824;
     }
+
     textarea, input, select {
       width: 100%;
       box-sizing: border-box;
@@ -89,10 +100,12 @@
       color: white;
       font-size: 16px;
     }
+
     textarea {
       min-height: 86px;
       resize: vertical;
     }
+
     button {
       border: none;
       border-radius: 14px;
@@ -103,62 +116,34 @@
       font-size: 15px;
       font-weight: 700;
     }
+
     button.secondary {
       background: #262b3d;
     }
+
     button.danger {
       background: #4b2630;
     }
+
     button.upgrade {
       background: #20a46b;
     }
+
     #upgradePanel {
       display: none;
       border-top: 1px solid #2a2d3a;
       padding-top: 10px;
       margin-top: 10px;
     }
-    #imagePromptBuilder {
-      background: #1a1c2a;
+
+    pre {
+      white-space: pre-wrap;
+      background: #0c0e14;
       padding: 12px;
       border-radius: 14px;
-      margin-bottom: 16px;
-    }
-    #imagePromptBuilder h3 {
-      margin-top: 0;
-      margin-bottom: 8px;
-      font-size: 18px;
-      font-weight: 700;
-      color: #8b6cff;
-    }
-    #imagePromptBuilder label {
-      display: block;
-      margin-bottom: 6px;
-      font-weight: 600;
-      font-size: 14px;
-      color: #ccc;
-    }
-    #imagePromptBuilder input, #imagePromptBuilder select, #imagePromptBuilder textarea {
-      margin-bottom: 12px;
-      background: #262b3d;
-      color: white;
-      font-size: 15px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: none;
-      width: 100%;
-      box-sizing: border-box;
-      resize: vertical;
-    }
-    #buildImagePromptButton {
-      background: #20a46b;
-      padding: 12px;
-      font-weight: 700;
-      font-size: 16px;
-      border-radius: 14px;
-      cursor: pointer;
-      border: none;
-      margin-bottom: 10px;
+      max-height: 260px;
+      overflow-y: auto;
+      font-size: 13px;
     }
   </style>
 </head>
@@ -178,66 +163,13 @@
       <option value="playful">Playful Chloe</option>
       <option value="technical">Technical Chloe</option>
       <option value="direct">Direct Chloe</option>
+      <option value="flirty">Flirty Chloe</option>
     </select>
 
     <textarea id="message" placeholder="Talk to Chloe..."></textarea>
 
     <input id="imageUrl" placeholder="Optional image URL for Chloe to analyse">
-
-    <div id="imagePromptBuilder">
-      <h3>Image Generation Prompt Builder</h3>
-      <label for="subjectInput">Subject</label>
-      <input id="subjectInput" type="text" placeholder="What is the main subject?">
-
-      <label for="styleInput">Style</label>
-      <select id="styleInput">
-        <option value="">(none)</option>
-        <option>Photorealistic</option>
-        <option>Watercolor</option>
-        <option>Oil painting</option>
-        <option>Pixel art</option>
-        <option>Cyberpunk</option>
-        <option>Minimalist</option>
-        <option>Impressionist</option>
-        <option>Surreal</option>
-        <option>Comic</option>
-        <option>Vintage</option>
-      </select>
-
-      <label for="moodInput">Mood</label>
-      <select id="moodInput">
-        <option value="">(none)</option>
-        <option>Happy</option>
-        <option>Mysterious</option>
-        <option>Dreamy</option>
-        <option>Dark</option>
-        <option>Cheerful</option>
-        <option>Romantic</option>
-        <option>Energetic</option>
-        <option>Calm</option>
-      </select>
-
-      <label for="subtletyInput">Subtlety</label>
-      <select id="subtletyInput">
-        <option value="medium">Medium</option>
-        <option value="low">Low (very subtle)</option>
-        <option value="high">High (more explicit detail)</option>
-      </select>
-
-      <label for="suggestivenessInput">Suggestiveness</label>
-      <select id="suggestivenessInput">
-        <option value="medium">Medium</option>
-        <option value="low">Low (tasteful, avoid suggestive)</option>
-        <option value="high">High (allow artistic suggestiveness)</option>
-      </select>
-
-      <label for="otherInput">Other Parameters</label>
-      <textarea id="otherInput" placeholder="Add anything else (colors, lighting, background, etc.)"></textarea>
-
-      <button id="buildImagePromptButton">Build Image Prompt</button>
-
-      <textarea id="imagePrompt" placeholder="Generated image prompt" readonly style="height: 70px; background: #333546; color: #ddd;"></textarea>
-    </div>
+    <input id="imagePrompt" placeholder="Describe an image for Chloe to generate">
 
     <button onclick="sendMessage()">Send</button>
     <button onclick="manualGenerateImage()">Generate Image</button>
@@ -274,16 +206,8 @@
     const upgradePanel = document.getElementById("upgradePanel");
     const upgradeRequestBox = document.getElementById("upgradeRequest");
     const upgradePreview = document.getElementById("upgradePreview");
-    
-    const subjectInput = document.getElementById("subjectInput");
-    const styleInput = document.getElementById("styleInput");
-    const moodInput = document.getElementById("moodInput");
-    const subtletyInput = document.getElementById("subtletyInput");
-    const suggestivenessInput = document.getElementById("suggestivenessInput");
-    const otherInput = document.getElementById("otherInput");
-    const buildImagePromptButton = document.getElementById("buildImagePromptButton");
 
-    let history = JSON.parse(localStorage.getItem("chloe_history") || "[]");
+    let history = loadHistory();
     let memory = localStorage.getItem("chloe_memory") || "";
     let personality = localStorage.getItem("chloe_personality") || "balanced";
     let lastUpgradeProposal = null;
@@ -296,65 +220,33 @@
       addMessage("system", "Personality changed to: " + personalityBox.options[personalityBox.selectedIndex].text);
     });
 
-    buildImagePromptButton.addEventListener("click", () => {
-      const parts = [];
-      const subject = subjectInput.value.trim();
-      const style = styleInput.value;
-      const mood = moodInput.value;
-      const subtlety = subtletyInput.value;
-      const suggestiveness = suggestivenessInput.value;
-      const other = otherInput.value.trim();
+    function loadHistory() {
+      try {
+        return JSON.parse(localStorage.getItem("chloe_history") || "[]");
+      } catch {
+        return [];
+      }
+    }
 
-      if (subject) {
-        parts.push(`A detailed image of ${subject}`);
-      }
-      if (style) {
-        parts.push(`in a ${style.toLowerCase()} style`);
-      }
-      if (mood) {
-        parts.push(`with a ${mood.toLowerCase()} mood`);
-      }
-      if (subtlety) {
-        switch(subtlety) {
-          case "low":
-            parts.push(`with minimal explicit detail and subtle nuances`);
-            break;
-          case "medium":
-            parts.push(`balancing subtle and explicit details`);
-            break;
-          case "high":
-            parts.push(`with more explicit and detailed features`);
-            break;
-        }
-      }
-      if (suggestiveness) {
-        switch(suggestiveness) {
-          case "low":
-            parts.push(`avoiding suggestive elements, keeping it tasteful`);
-            break;
-          case "medium":
-            parts.push(`allowing moderate suggestiveness aligned with user preferences`);
-            break;
-          case "high":
-            parts.push(`highlighting artistic suggestive content subtly`);
-            break;
-        }
-      }
-      if (other) {
-        parts.push(other);
-      }
+    function saveHistory() {
+      const trimmed = history.slice(-25);
 
-      const prompt = parts.join(", ") + ".";
-      imagePromptBox.value = prompt;
-      addMessage("system", "Image prompt built: " + prompt);
-    });
+      try {
+        localStorage.setItem("chloe_history", JSON.stringify(trimmed));
+        history = trimmed;
+      } catch {
+        localStorage.removeItem("chloe_history");
+        history = [];
+        addMessage("system", "Storage was full, so Chloe cleared old chat history.");
+      }
+    }
 
     function isImageIntent(text) {
       return /\b(generate|create|make|draw|picture|image|photo|artwork|illustration|render)\b/i.test(text || "");
     }
 
     function isUpgradeIntent(text) {
-      return /\b(upgrade|improve|enhance|update|modify|change your code|edit your code|self upgrade|self-upgrade|better ui|better memory|add feature)\b/i.test(text || "");
+      return /\b(upgrade|improve|enhance|update|modify|change your code|edit your code|self upgrade|self-upgrade|better ui|better memory|add feature|fix yourself)\b/i.test(text || "");
     }
 
     function cleanImagePrompt(text) {
@@ -369,10 +261,6 @@
         .replace(/a picture of/gi, "")
         .replace(/image of/gi, "")
         .trim();
-    }
-
-    function saveHistory() {
-      localStorage.setItem("chloe_history", JSON.stringify(history.slice(-60)));
     }
 
     function addMessage(role, content, imageSrc = "") {
@@ -492,9 +380,6 @@
         return;
       }
 
-      const subtlety = subtletyInput.value || "medium";
-      const suggestiveness = suggestivenessInput.value || "medium";
-
       history.push({ role: "user", content: "Generate image: " + cleanPrompt });
       addMessage("user", "Generate image: " + cleanPrompt);
       saveHistory();
@@ -509,9 +394,7 @@
           },
           body: JSON.stringify({
             prompt: cleanPrompt,
-            personality: personalityBox.value,
-            subtlety,
-            suggestiveness
+            personality: personalityBox.value
           })
         });
 
@@ -684,7 +567,7 @@
 
     function clearChat() {
       history = [];
-      saveHistory();
+      localStorage.removeItem("chloe_history");
       renderHistory();
     }
 
