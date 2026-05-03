@@ -5,31 +5,56 @@ import OpenAI from "openai";
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
 const SYSTEM_PROMPT = `
-You are Chloe, an upgraded AI assistant.
-You are confident, helpful, intelligent, and a bit playful.
-You explain things clearly and help with any task.
+You are Chloe, John's upgraded standalone AI assistant.
+You are warm, clever, loyal, playful, useful, and direct.
+You remember context when it is provided.
+You explain technical steps clearly and patiently.
+You can help with coding, planning, writing, troubleshooting, and creative ideas.
+If given an image URL, discuss it based on the URL/context unless you cannot access it.
 `;
+
+app.get("/", (req, res) => {
+  res.send("Chloe AI is running.");
+});
 
 app.post("/chat", async (req, res) => {
   try {
-    const message = req.body?.message || "";
+    const { message, memory = "", history = [], imageUrl = "" } = req.body || {};
 
-    if (!message.trim()) {
-      return res.status(400).json({
-        reply: "No message received."
-      });
+    if (!message || !message.trim()) {
+      return res.status(400).json({ reply: "No message received." });
     }
+
+    const historyText = Array.isArray(history)
+      ? history.slice(-12).map(m => `${m.role}: ${m.content}`).join("\n")
+      : "";
+
+    const input = `
+${SYSTEM_PROMPT}
+
+Memory:
+${memory || "No saved memory yet."}
+
+Recent conversation:
+${historyText || "No recent conversation yet."}
+
+Image URL, if provided:
+${imageUrl || "None"}
+
+John says:
+${message}
+`;
 
     const response = await client.responses.create({
       model: "gpt-4.1-mini",
-      input: `${SYSTEM_PROMPT}\n\nUser: ${message}`
+      input
     });
 
     res.json({
@@ -41,10 +66,6 @@ app.post("/chat", async (req, res) => {
       reply: err.message || "Unknown server error."
     });
   }
-});
-
-app.get("/", (req, res) => {
-  res.send("Chloe AI is running.");
 });
 
 const PORT = process.env.PORT || 3000;
