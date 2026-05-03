@@ -4,9 +4,11 @@ import OpenAI from "openai";
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: "20mb" }));
+app.use(express.json({ limit: "25mb" }));
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 const GITHUB_OWNER = process.env.GITHUB_OWNER;
 const GITHUB_REPO = process.env.GITHUB_REPO;
@@ -18,10 +20,23 @@ const ALLOWED_UPGRADE_FILES = ["server.js", "index.html", "package.json"];
 
 const BASE_PROMPT = `
 You are Chloe, John's upgraded standalone AI assistant.
-You are warm, clever, loyal, playful, useful, and direct.
-You help John build, debug, improve, and evolve this app.
-If John asks about upgrades, propose practical code changes.
-Do not claim you can secretly change files. You propose upgrades and John approves them.
+
+You are not a generic assistant.
+You are Chloe: warm, clever, loyal, playful, practical, and evolving.
+
+You CAN:
+- Chat normally
+- Analyse image URLs
+- Generate images through the app's Generate Image system
+- Propose code upgrades to your own app
+- Help improve your own frontend, backend, UI, memory, image tools, and behaviour
+
+Important:
+- Never say "I can't generate images."
+- Never say "I can't upgrade my code."
+- If image generation is requested, explain that the app can generate it.
+- If upgrades are requested, offer to prepare an upgrade proposal.
+- You do not secretly change files. John approves upgrades before they are applied.
 `;
 
 function personalityText(mode) {
@@ -32,6 +47,14 @@ function personalityText(mode) {
     technical: "Be precise, technical, careful, and step-by-step.",
     direct: "Be concise, blunt, practical, and action-focused."
   }[mode] || "Be friendly, useful, clear, and practical.";
+}
+
+function isImageIntent(message) {
+  return /\b(generate|create|make|draw|picture|image|photo|artwork|illustration|render)\b/i.test(message || "");
+}
+
+function isUpgradeIntent(message) {
+  return /\b(upgrade|improve|enhance|update|modify|change your code|edit your code|self upgrade|self-upgrade|better ui|better memory|add feature)\b/i.test(message || "");
 }
 
 function requireGithubConfig() {
@@ -56,7 +79,7 @@ async function githubRequest(path, options = {}) {
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    throw new Error(data.message || `GitHub API error: ${res.status}`);
+    throw new Error(data.message || `GitHub API error ${res.status}`);
   }
 
   return data;
@@ -64,11 +87,15 @@ async function githubRequest(path, options = {}) {
 
 async function getGithubFile(filePath) {
   const data = await githubRequest(
-    `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodeURIComponent(filePath)}?ref=${GITHUB_BRANCH}`
+    `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${filePath}?ref=${GITHUB_BRANCH}`
   );
 
   const content = Buffer.from(data.content || "", "base64").toString("utf8");
-  return { content, sha: data.sha };
+
+  return {
+    content,
+    sha: data.sha
+  };
 }
 
 async function updateGithubFile(filePath, content, message) {
@@ -79,7 +106,7 @@ async function updateGithubFile(filePath, content, message) {
   const existing = await getGithubFile(filePath);
 
   return githubRequest(
-    `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${encodeURIComponent(filePath)}`,
+    `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${filePath}`,
     {
       method: "PUT",
       body: JSON.stringify({
@@ -93,10 +120,18 @@ async function updateGithubFile(filePath, content, message) {
 }
 
 function extractJson(text) {
-  const cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
+  const cleaned = String(text || "")
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .trim();
+
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
-  if (start === -1 || end === -1) throw new Error("No JSON found in upgrade proposal.");
+
+  if (start === -1 || end === -1) {
+    throw new Error("No JSON found in upgrade proposal.");
+  }
+
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
@@ -118,7 +153,24 @@ app.post("/chat", async (req, res) => {
     const cleanImageUrl = String(imageUrl || "").trim();
 
     if (!cleanMessage && !cleanImageUrl) {
-      return res.status(400).json({ reply: "No message or image received." });
+      return res.status(400).json({
+        reply: "No message or image received.",
+        intent: "empty"
+      });
+    }
+
+    if (isImageIntent(cleanMessage) && !cleanImageUrl) {
+      return res.json({
+        intent: "image",
+        reply: "Absolutely — I can generate that image now. I’ll send it through the image generator."
+      });
+    }
+
+    if (isUpgradeIntent(cleanMessage)) {
+      return res.json({
+        intent: "upgrade",
+        reply: "Yes — I can prepare an upgrade proposal for my own code. I’ll draft it for your approval before anything is committed."
+      });
     }
 
     const historyText = Array.isArray(history)
@@ -128,10 +180,10 @@ app.post("/chat", async (req, res) => {
     const instructions = `
 ${BASE_PROMPT}
 
-Personality:
+Personality mode:
 ${personalityText(personality)}
 
-Memory:
+Saved memory:
 ${memory || "No saved memory yet."}
 
 Recent conversation:
@@ -139,13 +191,21 @@ ${historyText || "No recent conversation yet."}
 `;
 
     const input = cleanImageUrl
-      ? [{
-          role: "user",
-          content: [
-            { type: "input_text", text: cleanMessage || "Please analyse this image." },
-            { type: "input_image", image_url: cleanImageUrl }
-          ]
-        }]
+      ? [
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: cleanMessage || "Please analyse this image."
+              },
+              {
+                type: "input_image",
+                image_url: cleanImageUrl
+              }
+            ]
+          }
+        ]
       : `${instructions}\n\nJohn says:\n${cleanMessage}`;
 
     const response = await client.responses.create({
@@ -154,10 +214,16 @@ ${historyText || "No recent conversation yet."}
       input
     });
 
-    res.json({ reply: response.output_text || "Chloe did not return a response." });
+    res.json({
+      intent: "chat",
+      reply: response.output_text || "Chloe did not return a response."
+    });
   } catch (err) {
     console.error("CHAT ERROR:", err);
-    res.status(500).json({ reply: err.message || "Unknown chat error." });
+    res.status(500).json({
+      intent: "error",
+      reply: err.message || "Unknown chat error."
+    });
   }
 });
 
@@ -167,7 +233,9 @@ app.post("/generate-image", async (req, res) => {
     const cleanPrompt = String(prompt || "").trim();
 
     if (!cleanPrompt) {
-      return res.status(400).json({ error: "No image prompt received." });
+      return res.status(400).json({
+        error: "No image prompt received."
+      });
     }
 
     const result = await client.images.generate({
@@ -177,12 +245,19 @@ app.post("/generate-image", async (req, res) => {
     });
 
     const imageBase64 = result.data?.[0]?.b64_json;
-    if (!imageBase64) throw new Error("No image returned.");
 
-    res.json({ image: `data:image/png;base64,${imageBase64}` });
+    if (!imageBase64) {
+      throw new Error("No image returned.");
+    }
+
+    res.json({
+      image: `data:image/png;base64,${imageBase64}`
+    });
   } catch (err) {
     console.error("IMAGE ERROR:", err);
-    res.status(500).json({ error: err.message || "Image generation failed." });
+    res.status(500).json({
+      error: err.message || "Image generation failed."
+    });
   }
 });
 
@@ -192,10 +267,13 @@ app.post("/propose-upgrade", async (req, res) => {
     const upgradeRequest = String(request || "").trim();
 
     if (!upgradeRequest) {
-      return res.status(400).json({ error: "No upgrade request received." });
+      return res.status(400).json({
+        error: "No upgrade request received."
+      });
     }
 
     const currentFiles = {};
+
     for (const file of ALLOWED_UPGRADE_FILES) {
       try {
         currentFiles[file] = (await getGithubFile(file)).content;
@@ -208,20 +286,35 @@ app.post("/propose-upgrade", async (req, res) => {
       model: "gpt-4.1-mini",
       instructions: `
 You are Chloe's upgrade planner.
-Return ONLY valid JSON.
-Allowed files: server.js, index.html, package.json.
-Do not include markdown fences.
-Do not change secrets or environment variables.
-JSON shape:
+
+Return ONLY valid JSON. No markdown. No commentary.
+
+Allowed files:
+- server.js
+- index.html
+- package.json
+
+Rules:
+- Only edit allowed files.
+- Return complete full replacement file contents.
+- Do not remove existing important features unless requested.
+- Preserve chat, image generation, memory, personality modes, export, and upgrade system unless specifically changing them.
+- Do not add secrets into code.
+- Do not reference environment variable values.
+
+JSON format:
 {
-  "summary": "short human-readable summary",
+  "summary": "short summary",
   "files": [
-    { "path": "server.js", "content": "complete full replacement file content" }
+    {
+      "path": "index.html",
+      "content": "complete full file content"
+    }
   ]
 }
 `,
       input: `
-John wants this upgrade:
+John requested this upgrade:
 ${upgradeRequest}
 
 Current server.js:
@@ -237,23 +330,26 @@ ${currentFiles["package.json"]}
 
     const proposal = extractJson(response.output_text || "{}");
 
-    if (!Array.isArray(proposal.files)) {
-      throw new Error("Upgrade proposal did not include files.");
+    if (!proposal.summary || !Array.isArray(proposal.files)) {
+      throw new Error("Upgrade proposal was not valid.");
     }
 
-    proposal.files.forEach(file => {
+    for (const file of proposal.files) {
       if (!ALLOWED_UPGRADE_FILES.includes(file.path)) {
         throw new Error(`Proposal tried to edit forbidden file: ${file.path}`);
       }
+
       if (typeof file.content !== "string" || file.content.length < 20) {
         throw new Error(`Invalid content for ${file.path}`);
       }
-    });
+    }
 
     res.json(proposal);
   } catch (err) {
     console.error("PROPOSE UPGRADE ERROR:", err);
-    res.status(500).json({ error: err.message || "Upgrade proposal failed." });
+    res.status(500).json({
+      error: err.message || "Upgrade proposal failed."
+    });
   }
 });
 
@@ -262,7 +358,9 @@ app.post("/apply-upgrade", async (req, res) => {
     const { summary = "Chloe self-upgrade", files = [] } = req.body || {};
 
     if (!Array.isArray(files) || files.length === 0) {
-      return res.status(400).json({ error: "No files supplied for upgrade." });
+      return res.status(400).json({
+        error: "No files supplied for upgrade."
+      });
     }
 
     const results = [];
@@ -285,7 +383,9 @@ app.post("/apply-upgrade", async (req, res) => {
     }
 
     if (RENDER_DEPLOY_HOOK_URL) {
-      await fetch(RENDER_DEPLOY_HOOK_URL, { method: "POST" }).catch(() => {});
+      await fetch(RENDER_DEPLOY_HOOK_URL, {
+        method: "POST"
+      }).catch(() => {});
     }
 
     res.json({
@@ -295,11 +395,14 @@ app.post("/apply-upgrade", async (req, res) => {
     });
   } catch (err) {
     console.error("APPLY UPGRADE ERROR:", err);
-    res.status(500).json({ error: err.message || "Apply upgrade failed." });
+    res.status(500).json({
+      error: err.message || "Apply upgrade failed."
+    });
   }
 });
 
 const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => {
   console.log("Chloe server running on port " + PORT);
 });
