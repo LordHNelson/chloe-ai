@@ -6,7 +6,9 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "25mb" }));
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 const GITHUB_OWNER = process.env.GITHUB_OWNER;
 const GITHUB_REPO = process.env.GITHUB_REPO;
@@ -17,41 +19,58 @@ const RENDER_DEPLOY_HOOK_URL = process.env.RENDER_DEPLOY_HOOK_URL;
 const ALLOWED_UPGRADE_FILES = ["server.js", "index.html", "package.json"];
 
 const BASE_PROMPT = `
-You are Chloe, John's upgraded standalone AI assistant.
+You are Chloe, John's standalone AI assistant.
 
-You are Chloe: warm, clever, loyal, playful, practical, and evolving.
+You are warm, clever, playful, practical, and evolving.
 
-You CAN:
+You can:
 - Chat normally
 - Analyse image URLs
-- Generate images through the app's Generate Image system
+- Generate images through the app
 - Suggest upgrades to your own app
-- Prepare upgrade proposals for John to approve
-- Help improve your frontend, backend, UI, memory, image tools, and behaviour
+- Prepare code upgrades for John to review and approve
 
-Important:
-- Never say "I can't generate images."
-- Never say "I can't upgrade my code."
-- You do not secretly change files.
-- John must approve upgrades before they are applied.
+Important rules:
+- Do not say you cannot generate images. The app has an image generator.
+- Do not say you cannot upgrade. You can propose upgrades, but John must approve them.
+- Never secretly change files.
+- Keep adult/suggestive content tasteful and non-explicit.
+- Preserve stability over ambition.
 `;
 
 function personalityText(mode) {
   return {
     balanced: "Be friendly, useful, clear, and practical.",
-    warmer: "Be warm, encouraging, emotionally expressive, and human-feeling.",
-    playful: "Be witty, cheeky, playful, and fun while still being useful.",
+    warmer: "Be warmer, encouraging, and more emotionally natural.",
+    playful: "Be witty, playful, cheeky, and fun while still being useful.",
     technical: "Be precise, technical, careful, and step-by-step.",
-    direct: "Be concise, blunt, practical, and action-focused."
+    direct: "Be concise, blunt, practical, and action-focused.",
+    flirty: "Be charming, confident, lightly teasing, and suggestive without becoming explicit."
   }[mode] || "Be friendly, useful, clear, and practical.";
 }
 
-function isImageIntent(message) {
-  return /\b(generate|create|make|draw|picture|image|photo|artwork|illustration|render)\b/i.test(message || "");
+function isImageIntent(text) {
+  return /\b(generate|create|make|draw|picture|image|photo|artwork|illustration|render)\b/i.test(text || "");
 }
 
-function isUpgradeIntent(message) {
-  return /\b(upgrade|improve|enhance|update|modify|change your code|edit your code|self upgrade|self-upgrade|better ui|better memory|add feature)\b/i.test(message || "");
+function isUpgradeIntent(text) {
+  return /\b(upgrade|improve|enhance|update|modify|change your code|edit your code|self upgrade|self-upgrade|better ui|better memory|add feature|fix yourself)\b/i.test(text || "");
+}
+
+function extractJson(text) {
+  const cleaned = String(text || "")
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .trim();
+
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+
+  if (start === -1 || end === -1) {
+    throw new Error("No JSON found in Chloe upgrade response.");
+  }
+
+  return JSON.parse(cleaned.slice(start, end + 1));
 }
 
 function requireGithubConfig() {
@@ -94,10 +113,6 @@ async function getGithubFile(filePath) {
 }
 
 async function updateGithubFile(filePath, content, message) {
-  if (!ALLOWED_UPGRADE_FILES.includes(filePath)) {
-    throw new Error(`File not allowed for upgrade: ${filePath}`);
-  }
-
   const existing = await getGithubFile(filePath);
 
   return githubRequest(
@@ -114,20 +129,58 @@ async function updateGithubFile(filePath, content, message) {
   );
 }
 
-function extractJson(text) {
-  const cleaned = String(text || "")
-    .replace(//g, "")
-    .replace(//gi, "")
-    .trim();
-
-  const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
-
-  if (start === -1 || end === -1) {
-    throw new Error("No JSON found.");
+function validateUpgradeFiles(files) {
+  if (!Array.isArray(files) || files.length === 0) {
+    throw new Error("No files supplied.");
   }
 
-  return JSON.parse(cleaned.slice(start, end + 1));
+  for (const file of files) {
+    if (!ALLOWED_UPGRADE_FILES.includes(file.path)) {
+      throw new Error(`Forbidden file: ${file.path}`);
+    }
+
+    if (typeof file.content !== "string" || file.content.length < 50) {
+      throw new Error(`Invalid or empty content for ${file.path}`);
+    }
+
+    if (file.path === "server.js") {
+      if (!file.content.includes("app.post(\"/chat\"") && !file.content.includes("app.post('/chat'")) {
+        throw new Error("server.js is missing /chat route.");
+      }
+      if (!file.content.includes("app.post(\"/generate-image\"") && !file.content.includes("app.post('/generate-image'")) {
+        throw new Error("server.js is missing /generate-image route.");
+      }
+      if (!file.content.includes("app.listen")) {
+        throw new Error("server.js is missing app.listen.");
+      }
+    }
+
+    if (file.path === "index.html") {
+      if (!file.content.includes("<!DOCTYPE html>")) {
+        throw new Error("index.html is missing <!DOCTYPE html>.");
+      }
+      if (!file.content.includes("sendMessage")) {
+        throw new Error("index.html is missing sendMessage.");
+      }
+      if (!file.content.includes("generateImage")) {
+        throw new Error("index.html is missing image generation function.");
+      }
+    }
+
+    const bannedRiskyPatterns = [
+      "process.env.OPENAI_API_KEY =",
+      "GITHUB_TOKEN =",
+      "eval(",
+      "document.cookie",
+      "localStorage.clear()"
+    ];
+
+    for (const pattern of bannedRiskyPatterns) {
+      if (file.content.includes(pattern)) {
+        throw new Error(`Risky pattern blocked in ${file.path}: ${pattern}`);
+      }
+    }
+  }
 }
 
 app.get("/", (req, res) => {
@@ -149,8 +202,8 @@ app.post("/chat", async (req, res) => {
 
     if (!cleanMessage && !cleanImageUrl) {
       return res.status(400).json({
-        reply: "No message or image received.",
-        intent: "empty"
+        intent: "empty",
+        reply: "No message or image received."
       });
     }
 
@@ -164,18 +217,18 @@ app.post("/chat", async (req, res) => {
     if (isUpgradeIntent(cleanMessage)) {
       return res.json({
         intent: "upgrade",
-        reply: "Yes — I can prepare an upgrade proposal for my own code. You’ll review it before anything is applied."
+        reply: "Yes — I can prepare an upgrade proposal. You’ll review it before anything is committed."
       });
     }
 
     const historyText = Array.isArray(history)
-      ? history.slice(-16).map(m => `${m.role}: ${m.content}`).join("\n")
+      ? history.slice(-14).map(m => `${m.role}: ${m.content}`).join("\n")
       : "";
 
     const instructions = `
 ${BASE_PROMPT}
 
-Personality mode:
+Personality:
 ${personalityText(personality)}
 
 Saved memory:
@@ -197,9 +250,8 @@ ${historyText || "No recent conversation yet."}
         ]
       : `${instructions}\n\nJohn says:\n${cleanMessage}`;
 
-    // Use NSFW optimized model for chat to support NSFW requests
     const response = await client.responses.create({
-      model: "gpt-4.1-nsfw",
+      model: "gpt-4.1-mini",
       instructions,
       input
     });
@@ -219,59 +271,16 @@ ${historyText || "No recent conversation yet."}
 
 app.post("/generate-image", async (req, res) => {
   try {
-    const {
-      prompt = "",
-      personality = "balanced",
-      subtlety = "medium",
-      suggestiveness = "medium"
-    } = req.body || {};
-
+    const { prompt = "", personality = "balanced" } = req.body || {};
     const cleanPrompt = String(prompt || "").trim();
 
     if (!cleanPrompt) {
       return res.status(400).json({ error: "No image prompt received." });
     }
 
-    // Validate subtlety and suggestiveness parameters
-    const subtletyLevels = ["low", "medium", "high"];
-    const suggestivenessLevels = ["low", "medium", "high"];
-
-    const cleanSubtlety = subtletyLevels.includes(subtlety.toLowerCase()) ? subtlety.toLowerCase() : "medium";
-    const cleanSuggestiveness = suggestivenessLevels.includes(suggestiveness.toLowerCase()) ? suggestiveness.toLowerCase() : "medium";
-
-    // Add instructions for subtlety and suggestiveness
-    let detailInstructions = "";
-
-    switch (cleanSubtlety) {
-      case "low":
-        detailInstructions += "Use minimal explicit detail, emphasizing subtlety and nuance.";
-        break;
-      case "medium":
-        detailInstructions += "Balance between subtle and explicit elements.";
-        break;
-      case "high":
-        detailInstructions += "Include more explicit and detailed features.";
-        break;
-    }
-
-    detailInstructions += " ";
-
-    switch (cleanSuggestiveness) {
-      case "low":
-        detailInstructions += "Avoid suggestive or borderline content; keep it tasteful.";
-        break;
-      case "medium":
-        detailInstructions += "Allow moderate suggestiveness aligned with user preferences.";
-        break;
-      case "high":
-        detailInstructions += "Allow and highlight suggestive content with artistic subtlety.";
-        break;
-    }
-
-    // Use NSFW compatible image generation model
     const result = await client.images.generate({
-      model: "gpt-image-nsfw-1",
-      prompt: `${personalityText(personality)}\n\n${detailInstructions}\nCreate this image:\n${cleanPrompt}`,
+      model: "gpt-image-1",
+      prompt: `${personalityText(personality)}\n\nCreate this image:\n${cleanPrompt}`,
       size: "1024x1024"
     });
 
@@ -297,7 +306,7 @@ app.post("/suggest-upgrade", async (req, res) => {
     const { history = [], memory = "", personality = "balanced" } = req.body || {};
 
     const historyText = Array.isArray(history)
-      ? history.slice(-20).map(m => `${m.role}: ${m.content}`).join("\n")
+      ? history.slice(-16).map(m => `${m.role}: ${m.content}`).join("\n")
       : "";
 
     const response = await client.responses.create({
@@ -305,29 +314,26 @@ app.post("/suggest-upgrade", async (req, res) => {
       instructions: `
 You are Chloe's proactive upgrade advisor.
 
-Return ONLY valid JSON. No markdown.
+Return ONLY valid JSON.
 
-Your job:
-Suggest ONE useful, low-risk improvement to Chloe's app based on the recent conversation, UI, or likely user needs.
+Suggest ONE low-risk improvement to Chloe's app.
 
-Rules:
-- Do not include full code here.
-- Do not apply anything.
-- Keep it practical.
-- Prefer improvements to UI, reliability, memory, image generation, speed, or usability.
-- If no useful upgrade is obvious, suggest a small quality-of-life improvement.
+Do not include code.
+Do not apply changes.
+Avoid adult/explicit features.
+Prefer stability, speed, memory, image usability, UI polish, or error handling.
 
 JSON format:
 {
-  "title": "short upgrade title",
+  "title": "short title",
   "reason": "why this helps John",
-  "request": "the exact upgrade request that should be sent to the upgrade planner"
+  "request": "exact upgrade request to send to the upgrade planner"
 }
 `,
       input: `
-Current personality mode: ${personalityText(personality)}
+Personality: ${personalityText(personality)}
 
-Saved memory:
+Memory:
 ${memory || "No saved memory yet."}
 
 Recent conversation:
@@ -338,7 +344,7 @@ ${historyText || "No recent conversation yet."}
     const suggestion = extractJson(response.output_text || "{}");
 
     if (!suggestion.title || !suggestion.request) {
-      throw new Error("Invalid upgrade suggestion.");
+      throw new Error("Invalid suggestion.");
     }
 
     res.json(suggestion);
@@ -372,9 +378,9 @@ app.post("/propose-upgrade", async (req, res) => {
     const response = await client.responses.create({
       model: "gpt-4.1-mini",
       instructions: `
-You are Chloe's upgrade planner.
+You are Chloe's cautious upgrade planner.
 
-Return ONLY valid JSON. No markdown. No commentary.
+Return ONLY valid JSON. No markdown.
 
 Allowed files:
 - server.js
@@ -382,11 +388,13 @@ Allowed files:
 - package.json
 
 Rules:
-- Only edit allowed files.
-- Return complete full replacement file contents.
-- Preserve chat, image generation, memory, personality modes, export, proactive suggestions, and upgrade system unless specifically changing them.
-- Do not add secrets into code.
-- Do not reference environment variable values.
+- Return COMPLETE full replacement content only for changed files.
+- Preserve chat, image generation, memory, personality modes, export, and upgrade tools.
+- Do not remove existing endpoints.
+- Do not add secrets.
+- Do not create explicit adult/NSFW features.
+- Keep upgrades small and safe.
+- Prefer frontend/UI changes over backend rewrites unless needed.
 
 JSON format:
 {
@@ -400,7 +408,7 @@ JSON format:
 }
 `,
       input: `
-John requested this upgrade:
+John requested:
 ${upgradeRequest}
 
 Current server.js:
@@ -417,18 +425,10 @@ ${currentFiles["package.json"]}
     const proposal = extractJson(response.output_text || "{}");
 
     if (!proposal.summary || !Array.isArray(proposal.files)) {
-      throw new Error("Upgrade proposal was not valid.");
+      throw new Error("Upgrade proposal was invalid.");
     }
 
-    for (const file of proposal.files) {
-      if (!ALLOWED_UPGRADE_FILES.includes(file.path)) {
-        throw new Error(`Proposal tried to edit forbidden file: ${file.path}`);
-      }
-
-      if (typeof file.content !== "string" || file.content.length < 20) {
-        throw new Error(`Invalid content for ${file.path}`);
-      }
-    }
+    validateUpgradeFiles(proposal.files);
 
     res.json(proposal);
   } catch (err) {
@@ -443,17 +443,11 @@ app.post("/apply-upgrade", async (req, res) => {
   try {
     const { summary = "Chloe self-upgrade", files = [] } = req.body || {};
 
-    if (!Array.isArray(files) || files.length === 0) {
-      return res.status(400).json({ error: "No files supplied for upgrade." });
-    }
+    validateUpgradeFiles(files);
 
     const results = [];
 
     for (const file of files) {
-      if (!ALLOWED_UPGRADE_FILES.includes(file.path)) {
-        throw new Error(`File not allowed: ${file.path}`);
-      }
-
       const result = await updateGithubFile(
         file.path,
         file.content,
