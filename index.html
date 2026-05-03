@@ -3,6 +3,7 @@
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chloe AI</title>
+
   <style>
     body {
       margin: 0;
@@ -16,6 +17,10 @@
       font-size: 30px;
       font-weight: 800;
       border-bottom: 1px solid #2a2d3a;
+      background: #11131a;
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
 
     #status {
@@ -31,6 +36,7 @@
       height: 52vh;
       overflow-y: auto;
       padding: 18px;
+      scroll-behavior: smooth;
     }
 
     .msg {
@@ -41,6 +47,7 @@
       white-space: pre-wrap;
       line-height: 1.45;
       font-size: 16px;
+      animation: fadeIn 0.2s ease-in-out;
     }
 
     .user {
@@ -61,11 +68,14 @@
       font-size: 14px;
     }
 
-    .imageResult {
-      max-width: 92%;
-      border-radius: 18px;
-      margin-top: 10px;
+    .generated-image {
+      width: 100%;
+      max-width: 100%;
+      height: auto;
+      border-radius: 16px;
+      margin-top: 12px;
       display: block;
+      object-fit: contain;
     }
 
     #controls {
@@ -87,7 +97,7 @@
     }
 
     textarea {
-      min-height: 85px;
+      min-height: 86px;
       resize: vertical;
     }
 
@@ -126,9 +136,20 @@
       background: #0c0e14;
       padding: 12px;
       border-radius: 14px;
-      max-height: 240px;
+      max-height: 260px;
       overflow-y: auto;
       font-size: 13px;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
   </style>
 </head>
@@ -147,262 +168,4 @@
       <option value="warmer">Warmer Chloe</option>
       <option value="playful">Playful Chloe</option>
       <option value="technical">Technical Chloe</option>
-      <option value="direct">Direct Chloe</option>
-    </select>
-
-    <textarea id="message" placeholder="Talk to Chloe..."></textarea>
-
-    <input id="imageUrl" placeholder="Optional image URL for Chloe to analyse">
-    <input id="imagePrompt" placeholder="Describe an image for Chloe to generate">
-
-    <button onclick="sendMessage()">Send</button>
-    <button onclick="generateImage()">Generate Image</button>
-    <button class="secondary" onclick="editMemory()">Memory</button>
-    <button class="secondary" onclick="exportChat()">Export</button>
-    <button class="upgrade" onclick="toggleUpgradePanel()">Upgrade Chloe</button>
-    <button class="danger" onclick="clearChat()">Clear</button>
-
-    <div id="upgradePanel">
-      <textarea id="upgradeRequest" placeholder="Describe the upgrade you want Chloe to make to her own code..."></textarea>
-      <button class="upgrade" onclick="proposeUpgrade()">Propose Upgrade</button>
-      <button class="upgrade" onclick="applyUpgrade()">Approve & Apply</button>
-      <pre id="upgradePreview">No proposal yet.</pre>
-    </div>
-  </div>
-
-  <script>
-    const API_ROOT = "https://chloe-ai-af3m.onrender.com";
-    const BACKEND_URL = API_ROOT + "/chat";
-    const IMAGE_URL = API_ROOT + "/generate-image";
-    const PROPOSE_UPGRADE_URL = API_ROOT + "/propose-upgrade";
-    const APPLY_UPGRADE_URL = API_ROOT + "/apply-upgrade";
-    const PING_URL = API_ROOT + "/";
-
-    const chat = document.getElementById("chat");
-    const messageBox = document.getElementById("message");
-    const imageBox = document.getElementById("imageUrl");
-    const imagePromptBox = document.getElementById("imagePrompt");
-    const personalityBox = document.getElementById("personality");
-    const statusBox = document.getElementById("status");
-    const upgradePanel = document.getElementById("upgradePanel");
-    const upgradeRequestBox = document.getElementById("upgradeRequest");
-    const upgradePreview = document.getElementById("upgradePreview");
-
-    let history = JSON.parse(localStorage.getItem("chloe_history") || "[]");
-    let memory = localStorage.getItem("chloe_memory") || "";
-    let personality = localStorage.getItem("chloe_personality") || "balanced";
-    let lastUpgradeProposal = null;
-
-    personalityBox.value = personality;
-
-    personalityBox.addEventListener("change", () => {
-      personality = personalityBox.value;
-      localStorage.setItem("chloe_personality", personality);
-      addMessage("system", "Personality changed to: " + personalityBox.options[personalityBox.selectedIndex].text);
-    });
-
-    function saveHistory() {
-      localStorage.setItem("chloe_history", JSON.stringify(history.slice(-50)));
-    }
-
-    function addMessage(role, content, imageSrc = "") {
-      const div = document.createElement("div");
-      div.className = "msg " + (role === "user" ? "user" : role === "system" ? "system" : "chloe");
-      div.textContent = content;
-
-      if (imageSrc) {
-        const img = document.createElement("img");
-        img.src = imageSrc;
-        img.className = "imageResult";
-        div.appendChild(img);
-      }
-
-      chat.appendChild(div);
-      chat.scrollTop = chat.scrollHeight;
-    }
-
-    function renderHistory() {
-      chat.innerHTML = "";
-      history.forEach(m => addMessage(m.role, m.content, m.imageSrc || ""));
-    }
-
-    async function sendMessage() {
-      const message = messageBox.value.trim();
-      const imageUrl = imageBox.value.trim();
-
-      if (!message && !imageUrl) return;
-
-      messageBox.value = "";
-
-      const shownMessage = imageUrl ? `${message || "Analyse this image."}\n${imageUrl}` : message;
-
-      history.push({ role: "user", content: shownMessage });
-      addMessage("user", shownMessage);
-      saveHistory();
-
-      statusBox.textContent = "Thinking...";
-
-      try {
-        const res = await fetch(BACKEND_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message,
-            imageUrl,
-            memory,
-            history,
-            personality: personalityBox.value
-          })
-        });
-
-        const data = await res.json();
-        const reply = data.reply || "No reply returned.";
-
-        history.push({ role: "chloe", content: reply });
-        addMessage("chloe", reply);
-        saveHistory();
-
-        statusBox.textContent = "Online";
-      } catch (err) {
-        addMessage("chloe", "Error: " + err.message);
-        statusBox.textContent = "Offline";
-      }
-    }
-
-    async function generateImage() {
-      const prompt = imagePromptBox.value.trim() || messageBox.value.trim();
-
-      if (!prompt) {
-        addMessage("system", "Add an image prompt first.");
-        return;
-      }
-
-      history.push({ role: "user", content: "Generate image: " + prompt });
-      addMessage("user", "Generate image: " + prompt);
-      saveHistory();
-
-      statusBox.textContent = "Generating image...";
-
-      try {
-        const res = await fetch(IMAGE_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt,
-            personality: personalityBox.value
-          })
-        });
-
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        history.push({
-          role: "chloe",
-          content: "Image generated:",
-          imageSrc: data.image
-        });
-
-        addMessage("chloe", "Image generated:", data.image);
-        saveHistory();
-        statusBox.textContent = "Online";
-      } catch (err) {
-        addMessage("chloe", "Image generation error: " + err.message);
-        statusBox.textContent = "Online";
-      }
-    }
-
-    function toggleUpgradePanel() {
-      upgradePanel.style.display = upgradePanel.style.display === "none" ? "block" : "none";
-    }
-
-    async function proposeUpgrade() {
-      const request = upgradeRequestBox.value.trim();
-
-      if (!request) {
-        addMessage("system", "Describe the upgrade first.");
-        return;
-      }
-
-      statusBox.textContent = "Planning upgrade...";
-      upgradePreview.textContent = "Chloe is preparing an upgrade proposal...";
-
-      try {
-        const res = await fetch(PROPOSE_UPGRADE_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ request })
-        });
-
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        lastUpgradeProposal = data;
-        upgradePreview.textContent = JSON.stringify(data, null, 2);
-
-        addMessage("chloe", "Upgrade proposal ready. Review it, then press Approve & Apply if you want me to commit it.");
-        statusBox.textContent = "Online";
-      } catch (err) {
-        upgradePreview.textContent = "Upgrade proposal error: " + err.message;
-        statusBox.textContent = "Online";
-      }
-    }
-
-    async function applyUpgrade() {
-      if (!lastUpgradeProposal) {
-        addMessage("system", "No upgrade proposal to apply.");
-        return;
-      }
-
-      const ok = confirm("Approve this upgrade and commit it to GitHub?");
-      if (!ok) return;
-
-      statusBox.textContent = "Applying upgrade...";
-
-      try {
-        const res = await fetch(APPLY_UPGRADE_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(lastUpgradeProposal)
-        });
-
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        addMessage("chloe", "Upgrade committed. Render deploy has been triggered. Refresh in a minute or two.");
-        statusBox.textContent = "Online";
-      } catch (err) {
-        addMessage("chloe", "Apply upgrade error: " + err.message);
-        statusBox.textContent = "Online";
-      }
-    }
-
-    function editMemory() {
-      const updated = prompt("Chloe memory:", memory);
-      if (updated !== null) {
-        memory = updated;
-        localStorage.setItem("chloe_memory", memory);
-        addMessage("system", "Memory updated.");
-      }
-    }
-
-    function clearChat() {
-      history = [];
-      saveHistory();
-      renderHistory();
-    }
-
-    function exportChat() {
-      const text = history.map(m => `${m.role}: ${m.content}`).join("\n\n");
-      navigator.clipboard.writeText(text)
-        .then(() => addMessage("system", "Chat copied to clipboard."))
-        .catch(() => addMessage("system", "Could not copy chat."));
-    }
-
-    setInterval(() => {
-      fetch(PING_URL).catch(() => {});
-    }, 10 * 60 * 1000);
-
-    renderHistory();
-  </script>
-</body>
-</html>
+      <option value="direct">Direct
