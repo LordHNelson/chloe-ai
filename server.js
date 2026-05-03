@@ -6,9 +6,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "25mb" }));
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const GITHUB_OWNER = process.env.GITHUB_OWNER;
 const GITHUB_REPO = process.env.GITHUB_REPO;
@@ -21,22 +19,21 @@ const ALLOWED_UPGRADE_FILES = ["server.js", "index.html", "package.json"];
 const BASE_PROMPT = `
 You are Chloe, John's upgraded standalone AI assistant.
 
-You are not a generic assistant.
 You are Chloe: warm, clever, loyal, playful, practical, and evolving.
 
 You CAN:
 - Chat normally
 - Analyse image URLs
 - Generate images through the app's Generate Image system
-- Propose code upgrades to your own app
-- Help improve your own frontend, backend, UI, memory, image tools, and behaviour
+- Suggest upgrades to your own app
+- Prepare upgrade proposals for John to approve
+- Help improve your frontend, backend, UI, memory, image tools, and behaviour
 
 Important:
 - Never say "I can't generate images."
 - Never say "I can't upgrade my code."
-- If image generation is requested, explain that the app can generate it.
-- If upgrades are requested, offer to prepare an upgrade proposal.
-- You do not secretly change files. John approves upgrades before they are applied.
+- You do not secretly change files.
+- John must approve upgrades before they are applied.
 `;
 
 function personalityText(mode) {
@@ -90,10 +87,8 @@ async function getGithubFile(filePath) {
     `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${filePath}?ref=${GITHUB_BRANCH}`
   );
 
-  const content = Buffer.from(data.content || "", "base64").toString("utf8");
-
   return {
-    content,
+    content: Buffer.from(data.content || "", "base64").toString("utf8"),
     sha: data.sha
   };
 }
@@ -129,7 +124,7 @@ function extractJson(text) {
   const end = cleaned.lastIndexOf("}");
 
   if (start === -1 || end === -1) {
-    throw new Error("No JSON found in upgrade proposal.");
+    throw new Error("No JSON found.");
   }
 
   return JSON.parse(cleaned.slice(start, end + 1));
@@ -162,14 +157,14 @@ app.post("/chat", async (req, res) => {
     if (isImageIntent(cleanMessage) && !cleanImageUrl) {
       return res.json({
         intent: "image",
-        reply: "Absolutely — I can generate that image now. I’ll send it through the image generator."
+        reply: "Absolutely — I can generate that image now."
       });
     }
 
     if (isUpgradeIntent(cleanMessage)) {
       return res.json({
         intent: "upgrade",
-        reply: "Yes — I can prepare an upgrade proposal for my own code. I’ll draft it for your approval before anything is committed."
+        reply: "Yes — I can prepare an upgrade proposal for my own code. You’ll review it before anything is applied."
       });
     }
 
@@ -195,14 +190,8 @@ ${historyText || "No recent conversation yet."}
           {
             role: "user",
             content: [
-              {
-                type: "input_text",
-                text: cleanMessage || "Please analyse this image."
-              },
-              {
-                type: "input_image",
-                image_url: cleanImageUrl
-              }
+              { type: "input_text", text: cleanMessage || "Please analyse this image." },
+              { type: "input_image", image_url: cleanImageUrl }
             ]
           }
         ]
@@ -233,9 +222,7 @@ app.post("/generate-image", async (req, res) => {
     const cleanPrompt = String(prompt || "").trim();
 
     if (!cleanPrompt) {
-      return res.status(400).json({
-        error: "No image prompt received."
-      });
+      return res.status(400).json({ error: "No image prompt received." });
     }
 
     const result = await client.images.generate({
@@ -261,15 +248,71 @@ app.post("/generate-image", async (req, res) => {
   }
 });
 
+app.post("/suggest-upgrade", async (req, res) => {
+  try {
+    const { history = [], memory = "", personality = "balanced" } = req.body || {};
+
+    const historyText = Array.isArray(history)
+      ? history.slice(-20).map(m => `${m.role}: ${m.content}`).join("\n")
+      : "";
+
+    const response = await client.responses.create({
+      model: "gpt-4.1-mini",
+      instructions: `
+You are Chloe's proactive upgrade advisor.
+
+Return ONLY valid JSON. No markdown.
+
+Your job:
+Suggest ONE useful, low-risk improvement to Chloe's app based on the recent conversation, UI, or likely user needs.
+
+Rules:
+- Do not include full code here.
+- Do not apply anything.
+- Keep it practical.
+- Prefer improvements to UI, reliability, memory, image generation, speed, or usability.
+- If no useful upgrade is obvious, suggest a small quality-of-life improvement.
+
+JSON format:
+{
+  "title": "short upgrade title",
+  "reason": "why this helps John",
+  "request": "the exact upgrade request that should be sent to the upgrade planner"
+}
+`,
+      input: `
+Current personality mode: ${personalityText(personality)}
+
+Saved memory:
+${memory || "No saved memory yet."}
+
+Recent conversation:
+${historyText || "No recent conversation yet."}
+`
+    });
+
+    const suggestion = extractJson(response.output_text || "{}");
+
+    if (!suggestion.title || !suggestion.request) {
+      throw new Error("Invalid upgrade suggestion.");
+    }
+
+    res.json(suggestion);
+  } catch (err) {
+    console.error("SUGGEST UPGRADE ERROR:", err);
+    res.status(500).json({
+      error: err.message || "Upgrade suggestion failed."
+    });
+  }
+});
+
 app.post("/propose-upgrade", async (req, res) => {
   try {
     const { request = "" } = req.body || {};
     const upgradeRequest = String(request || "").trim();
 
     if (!upgradeRequest) {
-      return res.status(400).json({
-        error: "No upgrade request received."
-      });
+      return res.status(400).json({ error: "No upgrade request received." });
     }
 
     const currentFiles = {};
@@ -297,8 +340,7 @@ Allowed files:
 Rules:
 - Only edit allowed files.
 - Return complete full replacement file contents.
-- Do not remove existing important features unless requested.
-- Preserve chat, image generation, memory, personality modes, export, and upgrade system unless specifically changing them.
+- Preserve chat, image generation, memory, personality modes, export, proactive suggestions, and upgrade system unless specifically changing them.
 - Do not add secrets into code.
 - Do not reference environment variable values.
 
@@ -358,9 +400,7 @@ app.post("/apply-upgrade", async (req, res) => {
     const { summary = "Chloe self-upgrade", files = [] } = req.body || {};
 
     if (!Array.isArray(files) || files.length === 0) {
-      return res.status(400).json({
-        error: "No files supplied for upgrade."
-      });
+      return res.status(400).json({ error: "No files supplied for upgrade." });
     }
 
     const results = [];
@@ -383,9 +423,7 @@ app.post("/apply-upgrade", async (req, res) => {
     }
 
     if (RENDER_DEPLOY_HOOK_URL) {
-      await fetch(RENDER_DEPLOY_HOOK_URL, {
-        method: "POST"
-      }).catch(() => {});
+      await fetch(RENDER_DEPLOY_HOOK_URL, { method: "POST" }).catch(() => {});
     }
 
     res.json({
