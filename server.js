@@ -9,6 +9,7 @@ app.use(express.json());
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
+console.log("Using key:", process.env.OPENAI_API_KEY?.slice(0, 10));
 
 const SYSTEM_PROMPT = `
 You are Chloe, an upgraded AI assistant.
