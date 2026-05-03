@@ -28,13 +28,13 @@
     }
 
     #chat {
-      height: 56vh;
+      height: 52vh;
       overflow-y: auto;
       padding: 18px;
     }
 
     .msg {
-      max-width: 82%;
+      max-width: 84%;
       margin: 12px 0;
       padding: 14px 16px;
       border-radius: 18px;
@@ -87,7 +87,7 @@
     }
 
     textarea {
-      min-height: 90px;
+      min-height: 85px;
       resize: vertical;
     }
 
@@ -108,6 +108,27 @@
 
     button.danger {
       background: #4b2630;
+    }
+
+    button.upgrade {
+      background: #20a46b;
+    }
+
+    #upgradePanel {
+      display: none;
+      border-top: 1px solid #2a2d3a;
+      padding-top: 10px;
+      margin-top: 10px;
+    }
+
+    pre {
+      white-space: pre-wrap;
+      background: #0c0e14;
+      padding: 12px;
+      border-radius: 14px;
+      max-height: 240px;
+      overflow-y: auto;
+      font-size: 13px;
     }
   </style>
 </head>
@@ -138,13 +159,24 @@
     <button onclick="generateImage()">Generate Image</button>
     <button class="secondary" onclick="editMemory()">Memory</button>
     <button class="secondary" onclick="exportChat()">Export</button>
+    <button class="upgrade" onclick="toggleUpgradePanel()">Upgrade Chloe</button>
     <button class="danger" onclick="clearChat()">Clear</button>
+
+    <div id="upgradePanel">
+      <textarea id="upgradeRequest" placeholder="Describe the upgrade you want Chloe to make to her own code..."></textarea>
+      <button class="upgrade" onclick="proposeUpgrade()">Propose Upgrade</button>
+      <button class="upgrade" onclick="applyUpgrade()">Approve & Apply</button>
+      <pre id="upgradePreview">No proposal yet.</pre>
+    </div>
   </div>
 
   <script>
-    const BACKEND_URL = "https://chloe-ai-af3m.onrender.com/chat";
-    const IMAGE_URL = "https://chloe-ai-af3m.onrender.com/generate-image";
-    const PING_URL = "https://chloe-ai-af3m.onrender.com/";
+    const API_ROOT = "https://chloe-ai-af3m.onrender.com";
+    const BACKEND_URL = API_ROOT + "/chat";
+    const IMAGE_URL = API_ROOT + "/generate-image";
+    const PROPOSE_UPGRADE_URL = API_ROOT + "/propose-upgrade";
+    const APPLY_UPGRADE_URL = API_ROOT + "/apply-upgrade";
+    const PING_URL = API_ROOT + "/";
 
     const chat = document.getElementById("chat");
     const messageBox = document.getElementById("message");
@@ -152,10 +184,14 @@
     const imagePromptBox = document.getElementById("imagePrompt");
     const personalityBox = document.getElementById("personality");
     const statusBox = document.getElementById("status");
+    const upgradePanel = document.getElementById("upgradePanel");
+    const upgradeRequestBox = document.getElementById("upgradeRequest");
+    const upgradePreview = document.getElementById("upgradePreview");
 
     let history = JSON.parse(localStorage.getItem("chloe_history") || "[]");
     let memory = localStorage.getItem("chloe_memory") || "";
     let personality = localStorage.getItem("chloe_personality") || "balanced";
+    let lastUpgradeProposal = null;
 
     personalityBox.value = personality;
 
@@ -166,7 +202,7 @@
     });
 
     function saveHistory() {
-      localStorage.setItem("chloe_history", JSON.stringify(history.slice(-40)));
+      localStorage.setItem("chloe_history", JSON.stringify(history.slice(-50)));
     }
 
     function addMessage(role, content, imageSrc = "") {
@@ -209,9 +245,7 @@
       try {
         const res = await fetch(BACKEND_URL, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message,
             imageUrl,
@@ -252,9 +286,7 @@
       try {
         const res = await fetch(IMAGE_URL, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             prompt,
             personality: personalityBox.value
@@ -262,10 +294,7 @@
         });
 
         const data = await res.json();
-
-        if (data.error) {
-          throw new Error(data.error);
-        }
+        if (data.error) throw new Error(data.error);
 
         history.push({
           role: "chloe",
@@ -275,10 +304,74 @@
 
         addMessage("chloe", "Image generated:", data.image);
         saveHistory();
-
         statusBox.textContent = "Online";
       } catch (err) {
         addMessage("chloe", "Image generation error: " + err.message);
+        statusBox.textContent = "Online";
+      }
+    }
+
+    function toggleUpgradePanel() {
+      upgradePanel.style.display = upgradePanel.style.display === "none" ? "block" : "none";
+    }
+
+    async function proposeUpgrade() {
+      const request = upgradeRequestBox.value.trim();
+
+      if (!request) {
+        addMessage("system", "Describe the upgrade first.");
+        return;
+      }
+
+      statusBox.textContent = "Planning upgrade...";
+      upgradePreview.textContent = "Chloe is preparing an upgrade proposal...";
+
+      try {
+        const res = await fetch(PROPOSE_UPGRADE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ request })
+        });
+
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        lastUpgradeProposal = data;
+        upgradePreview.textContent = JSON.stringify(data, null, 2);
+
+        addMessage("chloe", "Upgrade proposal ready. Review it, then press Approve & Apply if you want me to commit it.");
+        statusBox.textContent = "Online";
+      } catch (err) {
+        upgradePreview.textContent = "Upgrade proposal error: " + err.message;
+        statusBox.textContent = "Online";
+      }
+    }
+
+    async function applyUpgrade() {
+      if (!lastUpgradeProposal) {
+        addMessage("system", "No upgrade proposal to apply.");
+        return;
+      }
+
+      const ok = confirm("Approve this upgrade and commit it to GitHub?");
+      if (!ok) return;
+
+      statusBox.textContent = "Applying upgrade...";
+
+      try {
+        const res = await fetch(APPLY_UPGRADE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(lastUpgradeProposal)
+        });
+
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        addMessage("chloe", "Upgrade committed. Render deploy has been triggered. Refresh in a minute or two.");
+        statusBox.textContent = "Online";
+      } catch (err) {
+        addMessage("chloe", "Apply upgrade error: " + err.message);
         statusBox.textContent = "Online";
       }
     }
