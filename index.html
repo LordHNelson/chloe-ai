@@ -217,6 +217,20 @@
         <option>Calm</option>
       </select>
 
+      <label for="subtletyInput">Subtlety</label>
+      <select id="subtletyInput">
+        <option value="medium">Medium</option>
+        <option value="low">Low (very subtle)</option>
+        <option value="high">High (more explicit detail)</option>
+      </select>
+
+      <label for="suggestivenessInput">Suggestiveness</label>
+      <select id="suggestivenessInput">
+        <option value="medium">Medium</option>
+        <option value="low">Low (tasteful, avoid suggestive)</option>
+        <option value="high">High (allow artistic suggestiveness)</option>
+      </select>
+
       <label for="otherInput">Other Parameters</label>
       <textarea id="otherInput" placeholder="Add anything else (colors, lighting, background, etc.)"></textarea>
 
@@ -264,6 +278,8 @@
     const subjectInput = document.getElementById("subjectInput");
     const styleInput = document.getElementById("styleInput");
     const moodInput = document.getElementById("moodInput");
+    const subtletyInput = document.getElementById("subtletyInput");
+    const suggestivenessInput = document.getElementById("suggestivenessInput");
     const otherInput = document.getElementById("otherInput");
     const buildImagePromptButton = document.getElementById("buildImagePromptButton");
 
@@ -285,6 +301,8 @@
       const subject = subjectInput.value.trim();
       const style = styleInput.value;
       const mood = moodInput.value;
+      const subtlety = subtletyInput.value;
+      const suggestiveness = suggestivenessInput.value;
       const other = otherInput.value.trim();
 
       if (subject) {
@@ -295,6 +313,32 @@
       }
       if (mood) {
         parts.push(`with a ${mood.toLowerCase()} mood`);
+      }
+      if (subtlety) {
+        switch(subtlety) {
+          case "low":
+            parts.push(`with minimal explicit detail and subtle nuances`);
+            break;
+          case "medium":
+            parts.push(`balancing subtle and explicit details`);
+            break;
+          case "high":
+            parts.push(`with more explicit and detailed features`);
+            break;
+        }
+      }
+      if (suggestiveness) {
+        switch(suggestiveness) {
+          case "low":
+            parts.push(`avoiding suggestive elements, keeping it tasteful`);
+            break;
+          case "medium":
+            parts.push(`allowing moderate suggestiveness aligned with user preferences`);
+            break;
+          case "high":
+            parts.push(`highlighting artistic suggestive content subtly`);
+            break;
+        }
       }
       if (other) {
         parts.push(other);
@@ -448,6 +492,9 @@
         return;
       }
 
+      const subtlety = subtletyInput.value || "medium";
+      const suggestiveness = suggestivenessInput.value || "medium";
+
       history.push({ role: "user", content: "Generate image: " + cleanPrompt });
       addMessage("user", "Generate image: " + cleanPrompt);
       saveHistory();
@@ -462,7 +509,9 @@
           },
           body: JSON.stringify({
             prompt: cleanPrompt,
-            personality: personalityBox.value
+            personality: personalityBox.value,
+            subtlety,
+            suggestiveness
           })
         });
 
