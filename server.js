@@ -117,7 +117,7 @@ async function updateGithubFile(filePath, content, message) {
 function extractJson(text) {
   const cleaned = String(text || "")
     .replace(//g, "")
-    .replace(//g, "")
+    .replace(//gi, "")
     .trim();
 
   const start = cleaned.indexOf("{");
@@ -219,17 +219,59 @@ ${historyText || "No recent conversation yet."}
 
 app.post("/generate-image", async (req, res) => {
   try {
-    const { prompt = "", personality = "balanced" } = req.body || {};
+    const {
+      prompt = "",
+      personality = "balanced",
+      subtlety = "medium",
+      suggestiveness = "medium"
+    } = req.body || {};
+
     const cleanPrompt = String(prompt || "").trim();
 
     if (!cleanPrompt) {
       return res.status(400).json({ error: "No image prompt received." });
     }
 
+    // Validate subtlety and suggestiveness parameters
+    const subtletyLevels = ["low", "medium", "high"];
+    const suggestivenessLevels = ["low", "medium", "high"];
+
+    const cleanSubtlety = subtletyLevels.includes(subtlety.toLowerCase()) ? subtlety.toLowerCase() : "medium";
+    const cleanSuggestiveness = suggestivenessLevels.includes(suggestiveness.toLowerCase()) ? suggestiveness.toLowerCase() : "medium";
+
+    // Add instructions for subtlety and suggestiveness
+    let detailInstructions = "";
+
+    switch (cleanSubtlety) {
+      case "low":
+        detailInstructions += "Use minimal explicit detail, emphasizing subtlety and nuance.";
+        break;
+      case "medium":
+        detailInstructions += "Balance between subtle and explicit elements.";
+        break;
+      case "high":
+        detailInstructions += "Include more explicit and detailed features.";
+        break;
+    }
+
+    detailInstructions += " ";
+
+    switch (cleanSuggestiveness) {
+      case "low":
+        detailInstructions += "Avoid suggestive or borderline content; keep it tasteful.";
+        break;
+      case "medium":
+        detailInstructions += "Allow moderate suggestiveness aligned with user preferences.";
+        break;
+      case "high":
+        detailInstructions += "Allow and highlight suggestive content with artistic subtlety.";
+        break;
+    }
+
     // Use NSFW compatible image generation model
     const result = await client.images.generate({
       model: "gpt-image-nsfw-1",
-      prompt: `${personalityText(personality)}\n\nCreate this image:\n${cleanPrompt}`,
+      prompt: `${personalityText(personality)}\n\n${detailInstructions}\nCreate this image:\n${cleanPrompt}`,
       size: "1024x1024"
     });
 
