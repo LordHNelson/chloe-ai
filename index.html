@@ -173,6 +173,32 @@ button.upgrade {
   overflow:hidden;
 }
 
+#imageModal {
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.88);
+  z-index:99;
+  padding:20px;
+  box-sizing:border-box;
+}
+
+#imageModal img {
+  width:100%;
+  max-height:78vh;
+  object-fit:contain;
+  border-radius:16px;
+  display:block;
+  margin:auto;
+}
+
+#imageModalText {
+  color:#ddd;
+  font-size:13px;
+  margin-top:10px;
+  text-align:center;
+}
+
 pre {
   white-space:pre-wrap;
   background:#0c0e14;
@@ -236,6 +262,11 @@ pre {
   </div>
 </div>
 
+<div id="imageModal" onclick="closeImageModal()">
+  <img id="imageModalImg">
+  <div id="imageModalText">Tap anywhere to close</div>
+</div>
+
 <script>
 const API = "https://chloe-ai-af3m.onrender.com";
 
@@ -250,14 +281,18 @@ const upgradeRequestBox = document.getElementById("upgradeRequest");
 const upgradePreview = document.getElementById("upgradePreview");
 const galleryPanel = document.getElementById("galleryPanel");
 const galleryGrid = document.getElementById("galleryGrid");
+const imageModal = document.getElementById("imageModal");
+const imageModalImg = document.getElementById("imageModalImg");
+const imageModalText = document.getElementById("imageModalText");
 
 let history = loadHistory();
 let memory = localStorage.getItem("chloe_memory") || "";
 let personality = localStorage.getItem("chloe_personality") || "balanced";
 let lastImagePrompt = localStorage.getItem("chloe_last_image_prompt") || "";
 let chloeAvatar = localStorage.getItem("chloe_avatar") || "";
-let lastGeneratedImage = localStorage.getItem("chloe_last_generated_image") || "";
+let lastGeneratedImage = "";
 let gallery = loadGallery();
+let fullImageCache = {};
 let lastUpgradeProposal = null;
 
 personalityBox.value = personality;
@@ -277,11 +312,15 @@ function loadHistory() {
 }
 
 function saveHistory() {
-  const trimmed = history.slice(-20);
-  history = trimmed;
+  const safeHistory = history.slice(-20).map(item => ({
+    role: item.role,
+    content: item.content
+  }));
+
+  history = safeHistory;
 
   try {
-    localStorage.setItem("chloe_history", JSON.stringify(trimmed));
+    localStorage.setItem("chloe_history", JSON.stringify(safeHistory));
   } catch {
     localStorage.removeItem("chloe_history");
     history = [];
@@ -320,7 +359,7 @@ function makeThumbnail(imageSrc) {
 
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      const size = 220;
+      const size = 240;
 
       canvas.width = size;
       canvas.height = size;
@@ -333,8 +372,7 @@ function makeThumbnail(imageSrc) {
       const y = (size - h) / 2;
 
       ctx.drawImage(img, x, y, w, h);
-
-      resolve(canvas.toDataURL("image/jpeg", 0.62));
+      resolve(canvas.toDataURL("image/jpeg", 0.65));
     };
 
     img.onerror = () => resolve("");
@@ -343,10 +381,13 @@ function makeThumbnail(imageSrc) {
 }
 
 async function addToGallery(prompt, image) {
+  const id = Date.now();
   const thumbnail = await makeThumbnail(image);
 
+  fullImageCache[id] = image;
+
   gallery.push({
-    id: Date.now(),
+    id,
     prompt,
     image: thumbnail || "",
     createdAt: new Date().toLocaleString()
@@ -380,6 +421,7 @@ function renderGallery() {
     if (item.image) {
       const img = document.createElement("img");
       img.src = item.image;
+      img.onclick = () => openGalleryImage(item);
       card.appendChild(img);
     }
 
@@ -391,16 +433,23 @@ function renderGallery() {
     date.className = "galleryPrompt";
     date.textContent = item.createdAt || "";
 
+    const openBtn = document.createElement("button");
+    openBtn.className = "secondary";
+    openBtn.textContent = "Open";
+    openBtn.onclick = () => openGalleryImage(item);
+
     const avatarBtn = document.createElement("button");
     avatarBtn.className = "secondary";
     avatarBtn.textContent = "Set Avatar";
     avatarBtn.onclick = () => {
-      if (!item.image) {
+      const src = fullImageCache[item.id] || item.image;
+
+      if (!src) {
         addMessage("system", "This gallery item has no stored image.");
         return;
       }
 
-      chloeAvatar = item.image;
+      chloeAvatar = src;
       localStorage.setItem("chloe_avatar", chloeAvatar);
       addMessage("system", "Chloe avatar updated from gallery.");
       renderHistory();
@@ -416,10 +465,32 @@ function renderGallery() {
 
     card.appendChild(prompt);
     card.appendChild(date);
+    card.appendChild(openBtn);
     card.appendChild(avatarBtn);
     card.appendChild(reuseBtn);
     galleryGrid.appendChild(card);
   });
+}
+
+function openGalleryImage(item) {
+  const full = fullImageCache[item.id];
+  const src = full || item.image;
+
+  if (!src) {
+    addMessage("system", "This gallery item has no image to open.");
+    return;
+  }
+
+  imageModalImg.src = src;
+  imageModalText.textContent = full
+    ? "Full image preview. Tap anywhere to close."
+    : "Thumbnail preview only. Full image is available only during the current session.";
+  imageModal.style.display = "block";
+}
+
+function closeImageModal() {
+  imageModal.style.display = "none";
+  imageModalImg.src = "";
 }
 
 function clearGallery() {
@@ -427,6 +498,7 @@ function clearGallery() {
   if (!ok) return;
 
   gallery = [];
+  fullImageCache = {};
   localStorage.removeItem("chloe_gallery");
   renderGallery();
   addMessage("system", "Gallery cleared.");
@@ -469,6 +541,11 @@ function addMessage(role, text, image=null) {
     const img = document.createElement("img");
     img.src = image;
     img.className = "generated-image";
+    img.onclick = () => {
+      imageModalImg.src = image;
+      imageModalText.textContent = "Full image preview. Tap anywhere to close.";
+      imageModal.style.display = "block";
+    };
     div.appendChild(img);
   }
 
@@ -491,7 +568,7 @@ async function typeIntoBubble(div, text) {
 
 function renderHistory() {
   chat.innerHTML = "";
-  history.forEach(m => addMessage(m.role, m.content, m.image || null));
+  history.forEach(m => addMessage(m.role, m.content));
 }
 
 function rememberLastImagePrompt(prompt) {
@@ -704,10 +781,14 @@ async function generateImageFromPrompt(prompt, auto=false) {
     const img = document.createElement("img");
     img.src = data.image;
     img.className = "generated-image";
+    img.onclick = () => {
+      imageModalImg.src = data.image;
+      imageModalText.textContent = "Full image preview. Tap anywhere to close.";
+      imageModal.style.display = "block";
+    };
     bubble.appendChild(img);
 
     lastGeneratedImage = data.image;
-    localStorage.setItem("chloe_last_generated_image", data.image);
 
     await addToGallery(cleanPrompt, data.image);
 
@@ -719,8 +800,7 @@ async function generateImageFromPrompt(prompt, auto=false) {
 
     history.push({
       role:"chloe",
-      content:auto ? "I thought this would help." : "Image generated.",
-      image:data.image
+      content:auto ? "I thought this would help." : "Image generated."
     });
 
     saveHistory();
