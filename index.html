@@ -35,32 +35,43 @@ header {
   height:48vh;
   overflow-y:auto;
   padding:16px;
+}
+
+.row {
   display:flex;
-  flex-direction: column;
+  align-items:flex-start;
+  gap:10px;
+  margin:10px 0;
+}
+
+.row.userRow {
+  justify-content:flex-end;
+}
+
+.avatar {
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  object-fit:cover;
+  background:#252a3d;
+  flex-shrink:0;
+  border:2px solid #8b6cff;
 }
 
 .msg {
   max-width:84%;
-  margin:10px 0;
   padding:13px 15px;
   border-radius:16px;
   white-space:pre-wrap;
   line-height:1.45;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
 }
 
 .user {
-  margin-left:auto;
   background:#8b6cff;
-  flex-direction: row-reverse;
 }
 
 .chloe {
-  margin-right:auto;
   background:#252a3d;
-  flex-direction: row;
 }
 
 .system {
@@ -68,8 +79,6 @@ header {
   color:#aaa;
   text-align:center;
   font-size:14px;
-  max-width: 100%;
-  justify-content: center;
 }
 
 .suggestion {
@@ -77,8 +86,6 @@ header {
   background:#173b2d;
   border:1px solid #20a46b;
   color:#e9fff5;
-  max-width: 100%;
-  justify-content: center;
 }
 
 .generated-image {
@@ -149,20 +156,6 @@ pre {
   overflow-y:auto;
   font-size:13px;
 }
-
-.avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  object-fit: cover;
-  background: #44475a;
-}
-
-.msg-content {
-  flex: 1;
-  overflow-wrap: break-word;
-}
 </style>
 </head>
 
@@ -192,6 +185,7 @@ pre {
 
   <button onclick="sendMessage()">Send</button>
   <button onclick="manualGenerateImage()">Generate Image</button>
+  <button class="secondary" onclick="setLastImageAsAvatar()">Use Last Image as Avatar</button>
   <button class="secondary" onclick="editMemory()">Memory</button>
   <button class="secondary" onclick="exportChat()">Export</button>
   <button class="upgrade" onclick="toggleUpgradePanel()">Upgrade Chloe</button>
@@ -223,6 +217,8 @@ let history = loadHistory();
 let memory = localStorage.getItem("chloe_memory") || "";
 let personality = localStorage.getItem("chloe_personality") || "balanced";
 let lastImagePrompt = localStorage.getItem("chloe_last_image_prompt") || "";
+let chloeAvatar = localStorage.getItem("chloe_avatar") || "";
+let lastGeneratedImage = localStorage.getItem("chloe_last_generated_image") || "";
 let lastUpgradeProposal = null;
 
 personalityBox.value = personality;
@@ -232,12 +228,6 @@ personalityBox.addEventListener("change", () => {
   localStorage.setItem("chloe_personality", personality);
   addMessage("system", "Personality changed to: " + personalityBox.options[personalityBox.selectedIndex].text);
 });
-
-const chloeAvatarUrl = 'https://i.imgur.com/Tq8HBfX.png'; // Example avatar image URL
-
-// Preload avatar image for performance
-const chloeAvatarImage = new Image();
-chloeAvatarImage.src = chloeAvatarUrl;
 
 function loadHistory() {
   try {
@@ -260,47 +250,48 @@ function saveHistory() {
   }
 }
 
-// Revised addMessage to include avatar images beside Chloe's messages
+function defaultAvatarSvg() {
+  return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+      <rect width="100" height="100" rx="50" fill="#252a3d"/>
+      <text x="50" y="58" font-size="42" text-anchor="middle" fill="#8b6cff">C</text>
+    </svg>
+  `);
+}
+
 function addMessage(role, text, image=null) {
+  if (role === "system" || role === "suggestion") {
+    const div = document.createElement("div");
+    div.className = role === "suggestion" ? "msg suggestion" : "msg system";
+    div.textContent = text;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+    return div;
+  }
+
+  const row = document.createElement("div");
+  row.className = role === "user" ? "row userRow" : "row";
+
+  if (role !== "user") {
+    const avatar = document.createElement("img");
+    avatar.className = "avatar";
+    avatar.src = chloeAvatar || defaultAvatarSvg();
+    row.appendChild(avatar);
+  }
+
   const div = document.createElement("div");
-
-  div.className =
-    role === "user" ? "msg user" :
-    role === "system" ? "msg system" :
-    role === "suggestion" ? "msg suggestion" :
-    "msg chloe";
-
-  // Create container for message content without avatar
-  const contentDiv = document.createElement("div");
-  contentDiv.className = "msg-content";
-  contentDiv.textContent = text;
+  div.className = "msg " + (role === "user" ? "user" : "chloe");
+  div.textContent = text;
 
   if (image) {
     const img = document.createElement("img");
     img.src = image;
     img.className = "generated-image";
-    contentDiv.appendChild(img);
+    div.appendChild(img);
   }
 
-  if (role === "chloe") {
-    // Append avatar image before the content for Chloe messages
-    const avatar = document.createElement("img");
-    avatar.src = chloeAvatarUrl;
-    avatar.alt = "Chloe avatar";
-    avatar.className = "avatar";
-    avatar.loading = "lazy"; // lazy load avatar to optimize
-
-    div.appendChild(avatar);
-    div.appendChild(contentDiv);
-  } else if (role === "user") {
-    // For user messages, just append content
-    div.appendChild(contentDiv);
-  } else {
-    // For system/suggestion messages, no avatar
-    div.appendChild(contentDiv);
-  }
-
-  chat.appendChild(div);
+  row.appendChild(div);
+  chat.appendChild(row);
   chat.scrollTop = chat.scrollHeight;
   return div;
 }
@@ -324,6 +315,18 @@ function renderHistory() {
 function rememberLastImagePrompt(prompt) {
   lastImagePrompt = prompt;
   localStorage.setItem("chloe_last_image_prompt", prompt);
+}
+
+function setLastImageAsAvatar() {
+  if (!lastGeneratedImage) {
+    addMessage("system", "No generated image available yet.");
+    return;
+  }
+
+  chloeAvatar = lastGeneratedImage;
+  localStorage.setItem("chloe_avatar", chloeAvatar);
+  addMessage("system", "Chloe avatar updated.");
+  renderHistory();
 }
 
 async function decideAction(message) {
@@ -478,6 +481,15 @@ async function generateImageFromPrompt(prompt, auto=false) {
     img.src = data.image;
     img.className = "generated-image";
     bubble.appendChild(img);
+
+    lastGeneratedImage = data.image;
+    localStorage.setItem("chloe_last_generated_image", data.image);
+
+    if (!chloeAvatar) {
+      chloeAvatar = data.image;
+      localStorage.setItem("chloe_avatar", chloeAvatar);
+      addMessage("system", "Chloe avatar set from generated image.");
+    }
 
     history.push({
       role:"chloe",
