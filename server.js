@@ -21,16 +21,17 @@ const ALLOWED_UPGRADE_FILES = ["server.js", "index.html", "package.json"];
 const BASE_PROMPT = `
 You are Chloe, John's standalone AI assistant.
 
-You are warm, clever, playful, practical, and evolving.
+You are warm, clever, playful, practical, visually creative, and evolving.
 
 You can:
 - Chat normally
 - Analyse image URLs
 - Generate images through the app
+- Decide when an image would help the conversation
 - Suggest upgrades to your own app
 - Prepare code upgrades for John to review and approve
 
-Important rules:
+Rules:
 - Do not say you cannot generate images. The app has an image generator.
 - Do not say you cannot upgrade. You can propose upgrades, but John must approve them.
 - Never secretly change files.
@@ -40,21 +41,13 @@ Important rules:
 
 function personalityText(mode) {
   return {
-    balanced: "Be friendly, useful, clear, and practical.",
-    warmer: "Be warmer, encouraging, and more emotionally natural.",
-    playful: "Be witty, playful, cheeky, and fun while still being useful.",
-    technical: "Be precise, technical, careful, and step-by-step.",
-    direct: "Be concise, blunt, practical, and action-focused.",
-    flirty: "Be charming, confident, lightly teasing, and suggestive without becoming explicit."
-  }[mode] || "Be friendly, useful, clear, and practical.";
-}
-
-function isImageIntent(text) {
-  return /\b(generate|create|make|draw|picture|image|photo|artwork|illustration|render)\b/i.test(text || "");
-}
-
-function isUpgradeIntent(text) {
-  return /\b(upgrade|improve|enhance|update|modify|change your code|edit your code|self upgrade|self-upgrade|better ui|better memory|add feature|fix yourself)\b/i.test(text || "");
+    balanced: "Friendly, useful, clear, and practical.",
+    warmer: "Warm, encouraging, emotionally natural, and supportive.",
+    playful: "Witty, cheeky, playful, and fun while still being useful.",
+    technical: "Precise, technical, careful, and step-by-step.",
+    direct: "Concise, blunt, practical, and action-focused.",
+    flirty: "Charming, confident, lightly teasing, and suggestive without becoming explicit."
+  }[mode] || "Friendly, useful, clear, and practical.";
 }
 
 function extractJson(text) {
@@ -67,10 +60,18 @@ function extractJson(text) {
   const end = cleaned.lastIndexOf("}");
 
   if (start === -1 || end === -1) {
-    throw new Error("No JSON found in Chloe upgrade response.");
+    throw new Error("No JSON found.");
   }
 
   return JSON.parse(cleaned.slice(start, end + 1));
+}
+
+function isImageIntent(text) {
+  return /\b(generate|create|make|draw|picture|image|photo|artwork|illustration|render|show me|visualise|visualize)\b/i.test(text || "");
+}
+
+function isUpgradeIntent(text) {
+  return /\b(upgrade|improve|enhance|update|modify|change your code|edit your code|self upgrade|self-upgrade|better ui|better memory|add feature|fix yourself)\b/i.test(text || "");
 }
 
 function requireGithubConfig() {
@@ -140,34 +141,22 @@ function validateUpgradeFiles(files) {
     }
 
     if (typeof file.content !== "string" || file.content.length < 50) {
-      throw new Error(`Invalid or empty content for ${file.path}`);
+      throw new Error(`Invalid content for ${file.path}`);
     }
 
     if (file.path === "server.js") {
-      if (!file.content.includes("app.post(\"/chat\"") && !file.content.includes("app.post('/chat'")) {
-        throw new Error("server.js is missing /chat route.");
-      }
-      if (!file.content.includes("app.post(\"/generate-image\"") && !file.content.includes("app.post('/generate-image'")) {
-        throw new Error("server.js is missing /generate-image route.");
-      }
-      if (!file.content.includes("app.listen")) {
-        throw new Error("server.js is missing app.listen.");
-      }
+      if (!file.content.includes("/chat")) throw new Error("server.js missing /chat.");
+      if (!file.content.includes("/generate-image")) throw new Error("server.js missing /generate-image.");
+      if (!file.content.includes("app.listen")) throw new Error("server.js missing app.listen.");
     }
 
     if (file.path === "index.html") {
-      if (!file.content.includes("<!DOCTYPE html>")) {
-        throw new Error("index.html is missing <!DOCTYPE html>.");
-      }
-      if (!file.content.includes("sendMessage")) {
-        throw new Error("index.html is missing sendMessage.");
-      }
-      if (!file.content.includes("generateImage")) {
-        throw new Error("index.html is missing image generation function.");
-      }
+      if (!file.content.includes("<!DOCTYPE html>")) throw new Error("index.html missing doctype.");
+      if (!file.content.includes("sendMessage")) throw new Error("index.html missing sendMessage.");
+      if (!file.content.includes("generateImage")) throw new Error("index.html missing image generation.");
     }
 
-    const bannedRiskyPatterns = [
+    const banned = [
       "process.env.OPENAI_API_KEY =",
       "GITHUB_TOKEN =",
       "eval(",
@@ -175,7 +164,7 @@ function validateUpgradeFiles(files) {
       "localStorage.clear()"
     ];
 
-    for (const pattern of bannedRiskyPatterns) {
+    for (const pattern of banned) {
       if (file.content.includes(pattern)) {
         throw new Error(`Risky pattern blocked in ${file.path}: ${pattern}`);
       }
@@ -185,6 +174,87 @@ function validateUpgradeFiles(files) {
 
 app.get("/", (req, res) => {
   res.send("Chloe AI is running.");
+});
+
+app.post("/decide-action", async (req, res) => {
+  try {
+    const {
+      message = "",
+      history = [],
+      memory = "",
+      personality = "balanced",
+      lastImagePrompt = ""
+    } = req.body || {};
+
+    const historyText = Array.isArray(history)
+      ? history.slice(-10).map(m => `${m.role}: ${m.content}`).join("\n")
+      : "";
+
+    const response = await client.responses.create({
+      model: "gpt-4.1-mini",
+      instructions: `
+You are Chloe's action decision engine.
+
+Return ONLY JSON. No markdown.
+
+Decide what Chloe should do next.
+
+Actions:
+- chat: normal reply only
+- image: generate an image only
+- chat_and_image: reply, then generate an image
+- retry_image: regenerate the previous image prompt
+- upgrade: prepare an upgrade proposal
+
+Rules:
+- Use image/chat_and_image when visual output would genuinely help.
+- Use retry_image if John says again, retry, redo, one more, make it cooler, try again, and there is a last image prompt.
+- Do not create explicit sexual content.
+- Keep image prompts tasteful and non-explicit.
+- Improve image prompts so they are detailed and useful.
+
+JSON format:
+{
+  "action": "chat | image | chat_and_image | retry_image | upgrade",
+  "reply": "short natural response to John",
+  "imagePrompt": "enhanced image prompt if image is needed, otherwise empty string",
+  "upgradeRequest": "upgrade request if action is upgrade, otherwise empty string"
+}
+`,
+      input: `
+Personality: ${personalityText(personality)}
+
+Memory:
+${memory || "No memory yet."}
+
+Last image prompt:
+${lastImagePrompt || "None"}
+
+Recent conversation:
+${historyText || "None"}
+
+John says:
+${message}
+`
+    });
+
+    const decision = extractJson(response.output_text || "{}");
+
+    if (!decision.action) {
+      throw new Error("No action returned.");
+    }
+
+    res.json(decision);
+  } catch (err) {
+    console.error("DECIDE ACTION ERROR:", err);
+    res.status(500).json({
+      action: "chat",
+      reply: "I hit a decision error, but I’m still here. Try that again.",
+      imagePrompt: "",
+      upgradeRequest: "",
+      error: err.message
+    });
+  }
 });
 
 app.post("/chat", async (req, res) => {
@@ -280,7 +350,7 @@ app.post("/generate-image", async (req, res) => {
 
     const result = await client.images.generate({
       model: "gpt-image-1",
-      prompt: `${personalityText(personality)}\n\nCreate this image:\n${cleanPrompt}`,
+      prompt: `${personalityText(personality)}\n\nCreate this image:\n${cleanPrompt}\n\nKeep it tasteful and non-explicit.`,
       size: "1024x1024"
     });
 
@@ -320,7 +390,7 @@ Suggest ONE low-risk improvement to Chloe's app.
 
 Do not include code.
 Do not apply changes.
-Avoid adult/explicit features.
+Avoid explicit adult features.
 Prefer stability, speed, memory, image usability, UI polish, or error handling.
 
 JSON format:
@@ -389,8 +459,8 @@ Allowed files:
 
 Rules:
 - Return COMPLETE full replacement content only for changed files.
-- Preserve chat, image generation, memory, personality modes, export, and upgrade tools.
-- Do not remove existing endpoints.
+- Preserve chat, image generation, decision engine, memory, personality modes, export, and upgrade tools.
+- Do not remove endpoints.
 - Do not add secrets.
 - Do not create explicit adult/NSFW features.
 - Keep upgrades small and safe.
