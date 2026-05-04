@@ -21,26 +21,20 @@ header {
   top:0;
   background:#11131a;
   z-index:10;
-  display:flex;
-  justify-content: space-between;
-  align-items:center;
-  gap: 12px;
 }
 
 #status {
+  float:right;
   font-size:13px;
   background:#222638;
   padding:7px 12px;
   border-radius:999px;
-  white-space: nowrap;
 }
 
 #chat {
-  height:40vh;
+  height:45vh;
   overflow-y:auto;
   padding:16px;
-  border-bottom:1px solid #2a2d3a;
-  background:#151824;
 }
 
 .row {
@@ -106,9 +100,6 @@ header {
   padding:12px;
   border-top:1px solid #2a2d3a;
   background:#151824;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
 textarea, input, select {
@@ -125,7 +116,6 @@ textarea, input, select {
 
 textarea {
   min-height:80px;
-  resize: vertical;
 }
 
 button {
@@ -136,7 +126,6 @@ button {
   background:#8b6cff;
   color:white;
   font-weight:700;
-  cursor: pointer;
 }
 
 button.secondary {
@@ -151,11 +140,37 @@ button.upgrade {
   background:#20a46b;
 }
 
-#upgradePanel {
+#upgradePanel, #galleryPanel {
   display:none;
   border-top:1px solid #2a2d3a;
   margin-top:10px;
   padding-top:10px;
+}
+
+.galleryGrid {
+  display:grid;
+  grid-template-columns:repeat(2, 1fr);
+  gap:10px;
+}
+
+.galleryCard {
+  background:#202437;
+  border-radius:14px;
+  padding:8px;
+}
+
+.galleryCard img {
+  width:100%;
+  border-radius:12px;
+  display:block;
+}
+
+.galleryPrompt {
+  font-size:12px;
+  color:#bbb;
+  margin-top:6px;
+  max-height:48px;
+  overflow:hidden;
 }
 
 pre {
@@ -167,145 +182,17 @@ pre {
   overflow-y:auto;
   font-size:13px;
 }
-
-/* Gallery Styles */
-#galleryContainer {
-  margin-top: 12px;
-  background: #1c2030;
-  padding: 12px;
-  border-radius: 14px;
-  display: flex;
-  flex-direction: column;
-}
-
-#galleryControls {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-}
-
-#tagFilter, #categoryFilter {
-  background: #262b3d;
-  border-radius: 8px;
-  border: none;
-  padding: 8px 12px;
-  color: white;
-  min-width: 140px;
-}
-
-#imageGallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 10px;
-  max-height: 320px;
-  overflow-y: auto;
-  border-radius: 12px;
-  background: #11131a;
-  padding: 8px;
-}
-
-.gallery-item {
-  position: relative;
-  cursor: pointer;
-  border-radius: 12px;
-  overflow: hidden;
-  border: 2px solid transparent;
-  transition: border-color 0.25s ease;
-  display: flex;
-  flex-direction: column;
-  background: #252a3d;
-}
-
-.gallery-item.selected {
-  border-color: #8b6cff;
-}
-
-.gallery-image {
-  width: 100%;
-  height: 110px;
-  object-fit: cover;
-  border-bottom: 1px solid #454f67;
-}
-
-.gallery-info {
-  padding: 6px 8px;
-  font-size: 12px;
-  color: #ccc;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.gallery-tags {
-  margin-top: 2px;
-  font-size: 10px;
-  color: #8b6cff;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.gallery-tag {
-  margin-right: 6px;
-}
-
-/* Scrollbar for gallery */
-#imageGallery::-webkit-scrollbar {
-  height: 6px;
-}
-
-#imageGallery::-webkit-scrollbar-thumb {
-  background-color: #8b6cff99;
-  border-radius: 4px;
-}
-
-#imageGallery::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.gallery-fullscreen-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(17, 19, 26, 0.95);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  cursor: zoom-out;
-}
-
-.gallery-fullscreen-overlay img {
-  max-width: 90vw;
-  max-height: 90vh;
-  border-radius: 16px;
-  box-shadow: 0 0 20px #8b6cffaa;
-}
-
 </style>
 </head>
 
 <body>
 
 <header>
-  <div>Chloe AI</div>
+  Chloe AI
   <span id="status">Online</span>
 </header>
 
 <div id="chat"></div>
-
-<div id="galleryContainer">
-  <div id="galleryControls">
-    <input type="text" id="tagFilter" placeholder="Filter by tags (comma separated)..." title="Enter comma-separated tags to filter images by tags">
-    <select id="categoryFilter" title="Filter images by category">
-      <option value="all">All Categories</option>
-    </select>
-  </div>
-  <div id="imageGallery" title="Generated images gallery (click to view)"></div>
-</div>
 
 <div id="controls">
   <select id="personality">
@@ -324,12 +211,22 @@ pre {
 
   <button onclick="sendMessage()">Send</button>
   <button onclick="manualGenerateImage()">Generate Image</button>
+  <button class="secondary" onclick="toggleGallery()">Gallery</button>
   <button class="secondary" onclick="setLastImageAsAvatar()">Use Last Image as Avatar</button>
   <button class="secondary" onclick="editMemory()">Memory</button>
+  <button class="secondary" onclick="loadServerMemory()">Load Memory</button>
+  <button class="secondary" onclick="saveServerMemory()">Save Memory</button>
   <button class="secondary" onclick="exportChat()">Export</button>
   <button class="upgrade" onclick="toggleUpgradePanel()">Upgrade Chloe</button>
   <button class="upgrade" onclick="suggestUpgrade()">Suggest Upgrade</button>
   <button class="danger" onclick="clearChat()">Clear</button>
+
+  <div id="galleryPanel">
+    <h3>Chloe Image Gallery</h3>
+    <button class="secondary" onclick="renderGallery()">Refresh Gallery</button>
+    <button class="danger" onclick="clearGallery()">Clear Gallery</button>
+    <div id="galleryGrid" class="galleryGrid"></div>
+  </div>
 
   <div id="upgradePanel">
     <textarea id="upgradeRequest" placeholder="Describe the upgrade Chloe should make to her own code..."></textarea>
@@ -351,11 +248,8 @@ const statusBox = document.getElementById("status");
 const upgradePanel = document.getElementById("upgradePanel");
 const upgradeRequestBox = document.getElementById("upgradeRequest");
 const upgradePreview = document.getElementById("upgradePreview");
-
-const galleryContainer = document.getElementById("galleryContainer");
-const imageGallery = document.getElementById("imageGallery");
-const tagFilterInput = document.getElementById("tagFilter");
-const categoryFilterSelect = document.getElementById("categoryFilter");
+const galleryPanel = document.getElementById("galleryPanel");
+const galleryGrid = document.getElementById("galleryGrid");
 
 let history = loadHistory();
 let memory = localStorage.getItem("chloe_memory") || "";
@@ -363,10 +257,8 @@ let personality = localStorage.getItem("chloe_personality") || "balanced";
 let lastImagePrompt = localStorage.getItem("chloe_last_image_prompt") || "";
 let chloeAvatar = localStorage.getItem("chloe_avatar") || "";
 let lastGeneratedImage = localStorage.getItem("chloe_last_generated_image") || "";
+let gallery = loadGallery();
 let lastUpgradeProposal = null;
-
-// Gallery image store: array of objects { image:string, prompt:string, tags:[], category:string, timestamp:number }
-let galleryImages = loadGalleryImages();
 
 personalityBox.value = personality;
 
@@ -397,30 +289,112 @@ function saveHistory() {
   }
 }
 
-function loadGalleryImages() {
+function loadGallery() {
   try {
-    return JSON.parse(localStorage.getItem("chloe_gallery_images") || "[]");
+    return JSON.parse(localStorage.getItem("chloe_gallery") || "[]");
   } catch {
     return [];
   }
 }
 
-function saveGalleryImages() {
+function saveGallery() {
+  gallery = gallery.slice(-12);
+
   try {
-    localStorage.setItem("chloe_gallery_images", JSON.stringify(galleryImages));
+    localStorage.setItem("chloe_gallery", JSON.stringify(gallery));
   } catch {
-    // If storage full, clear gallery and warn
-    galleryImages = [];
-    localStorage.removeItem("chloe_gallery_images");
-    addMessage("system", "Storage was full, gallery images reset.");
+    gallery = gallery.slice(-4);
+    localStorage.setItem("chloe_gallery", JSON.stringify(gallery));
+    addMessage("system", "Gallery storage was full, so Chloe kept only the newest images.");
   }
+}
+
+function addToGallery(prompt, image) {
+  gallery.push({
+    id: Date.now(),
+    prompt,
+    image,
+    createdAt: new Date().toLocaleString()
+  });
+
+  saveGallery();
+  renderGallery();
+}
+
+function toggleGallery() {
+  galleryPanel.style.display =
+    galleryPanel.style.display === "none" || !galleryPanel.style.display
+      ? "block"
+      : "none";
+
+  renderGallery();
+}
+
+function renderGallery() {
+  galleryGrid.innerHTML = "";
+
+  if (!gallery.length) {
+    galleryGrid.innerHTML = "<div class='system'>No saved images yet.</div>";
+    return;
+  }
+
+  gallery.slice().reverse().forEach(item => {
+    const card = document.createElement("div");
+    card.className = "galleryCard";
+
+    const img = document.createElement("img");
+    img.src = item.image;
+
+    const prompt = document.createElement("div");
+    prompt.className = "galleryPrompt";
+    prompt.textContent = item.prompt || "Untitled image";
+
+    const date = document.createElement("div");
+    date.className = "galleryPrompt";
+    date.textContent = item.createdAt || "";
+
+    const avatarBtn = document.createElement("button");
+    avatarBtn.className = "secondary";
+    avatarBtn.textContent = "Set Avatar";
+    avatarBtn.onclick = () => {
+      chloeAvatar = item.image;
+      localStorage.setItem("chloe_avatar", chloeAvatar);
+      addMessage("system", "Chloe avatar updated from gallery.");
+      renderHistory();
+    };
+
+    const reuseBtn = document.createElement("button");
+    reuseBtn.className = "secondary";
+    reuseBtn.textContent = "Reuse Prompt";
+    reuseBtn.onclick = () => {
+      imagePromptBox.value = item.prompt || "";
+      addMessage("system", "Prompt copied from gallery.");
+    };
+
+    card.appendChild(img);
+    card.appendChild(prompt);
+    card.appendChild(date);
+    card.appendChild(avatarBtn);
+    card.appendChild(reuseBtn);
+    galleryGrid.appendChild(card);
+  });
+}
+
+function clearGallery() {
+  const ok = confirm("Clear Chloe's image gallery?");
+  if (!ok) return;
+
+  gallery = [];
+  localStorage.removeItem("chloe_gallery");
+  renderGallery();
+  addMessage("system", "Gallery cleared.");
 }
 
 function defaultAvatarSvg() {
   return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`
-    <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\">
-      <rect width=\"100\" height=\"100\" rx=\"50\" fill=\"#252a3d\"/>
-      <text x=\"50\" y=\"58\" font-size=\"42\" text-anchor=\"middle\" fill=\"#8b6cff\">C</text>
+    <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+      <rect width="100" height="100" rx="50" fill="#252a3d"/>
+      <text x="50" y="58" font-size="42" text-anchor="middle" fill="#8b6cff">C</text>
     </svg>
   `);
 }
@@ -495,144 +469,46 @@ function setLastImageAsAvatar() {
   renderHistory();
 }
 
-// --- Gallery functions ---
+async function loadServerMemory() {
+  statusBox.textContent = "Loading memory...";
 
-function addImageToGallery(imageData) {
-  // imageData = { image:string, prompt:string, tags:[], category:string, timestamp:number }
-  galleryImages.unshift(imageData); // newest first
-  saveGalleryImages();
-  updateCategoryFilters();
-  renderGallery();
+  try {
+    const res = await fetch(API + "/memory");
+    const data = await res.json();
+
+    if (data.error) throw new Error(data.error);
+
+    memory = data.memory || "";
+    localStorage.setItem("chloe_memory", memory);
+
+    addMessage("system", data.updatedAt ? "Persistent memory loaded. Last updated: " + data.updatedAt : "Persistent memory loaded.");
+    statusBox.textContent = "Online";
+  } catch (err) {
+    addMessage("system", "Memory load error: " + err.message);
+    statusBox.textContent = "Online";
+  }
 }
 
-function updateCategoryFilters() {
-  const existingOptions = Array.from(categoryFilterSelect.options).map(o => o.value);
-  const categories = new Set(galleryImages.map(img => img.category || "Uncategorized"));
+async function saveServerMemory() {
+  statusBox.textContent = "Saving memory...";
 
-  // Remove all options except 'all'
-  for (let i = categoryFilterSelect.options.length - 1; i >= 0; i--) {
-    if (categoryFilterSelect.options[i].value !== "all") {
-      categoryFilterSelect.remove(i);
-    }
-  }
-
-  // Add categories sorted
-  Array.from(categories).sort().forEach(cat => {
-    if (cat && !existingOptions.includes(cat)) {
-      const option = document.createElement("option");
-      option.value = cat;
-      option.textContent = cat;
-      categoryFilterSelect.appendChild(option);
-    }
-  });
-}
-
-function renderGallery() {
-  const tagFilterText = tagFilterInput.value.trim().toLowerCase();
-  const tagFilterTags = tagFilterText ? tagFilterText.split(",").map(t => t.trim()).filter(t => t) : [];
-  const categoryFilter = categoryFilterSelect.value;
-
-  imageGallery.innerHTML = "";
-
-  let filtered = galleryImages;
-
-  if (categoryFilter !== "all") {
-    filtered = filtered.filter(img => (img.category || "Uncategorized") === categoryFilter);
-  }
-
-  if (tagFilterTags.length > 0) {
-    filtered = filtered.filter(img => {
-      if (!img.tags || !Array.isArray(img.tags)) return false;
-      return tagFilterTags.every(tag => img.tags.some(t => t.toLowerCase().includes(tag)));
+  try {
+    const res = await fetch(API + "/memory", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ memory })
     });
+
+    const data = await res.json();
+
+    if (data.error) throw new Error(data.error);
+
+    addMessage("system", "Persistent memory saved.");
+    statusBox.textContent = "Online";
+  } catch (err) {
+    addMessage("system", "Memory save error: " + err.message);
+    statusBox.textContent = "Online";
   }
-
-  if (filtered.length === 0) {
-    const noItem = document.createElement("div");
-    noItem.textContent = "No images found for selected filters.";
-    noItem.style.color = "#999";
-    noItem.style.padding = "12px";
-    imageGallery.appendChild(noItem);
-    return;
-  }
-
-  filtered.forEach((imgData, index) => {
-    const item = document.createElement("div");
-    item.className = "gallery-item";
-    item.title = imgData.prompt || "Image";
-    
-    // Show image
-    const img = document.createElement("img");
-    img.className = "gallery-image";
-    img.src = imgData.image;
-    img.alt = imgData.prompt || "Generated image";
-    item.appendChild(img);
-
-    // Show prompt or category
-    const info = document.createElement("div");
-    info.className = "gallery-info";
-    const timeStr = new Date(imgData.timestamp).toLocaleDateString();
-    info.textContent = (imgData.category || "Uncategorized") + " - " + timeStr;
-    item.appendChild(info);
-
-    // Tags
-    if (imgData.tags && imgData.tags.length > 0) {
-      const tagsDiv = document.createElement("div");
-      tagsDiv.className = "gallery-tags";
-      imgData.tags.forEach(t => {
-        const tSpan = document.createElement("span");
-        tSpan.className = "gallery-tag";
-        tSpan.textContent = `#${t}`;
-        tagsDiv.appendChild(tSpan);
-      });
-      item.appendChild(tagsDiv);
-    }
-
-    // Click handler - fullscreen view
-    item.addEventListener("click", () => showFullscreenImage(imgData));
-
-    imageGallery.appendChild(item);
-  });
-}
-
-function showFullscreenImage(imgData) {
-  const overlay = document.createElement("div");
-  overlay.className = "gallery-fullscreen-overlay";
-  overlay.title = imgData.prompt || "Full view image";
-
-  const img = document.createElement("img");
-  img.src = imgData.image;
-  img.alt = imgData.prompt || "Generated image fullscreen";
-
-  overlay.appendChild(img);
-
-  overlay.addEventListener("click", () => {
-    document.body.removeChild(overlay);
-  });
-
-  document.body.appendChild(overlay);
-}
-
-// Filters change events
-categoryFilterSelect.addEventListener("change", renderGallery);
-tagFilterInput.addEventListener("input", () => {
-  // Debounce the filtering to avoid excessive renders
-  clearTimeout(tagFilterInput._filterTimeout);
-  tagFilterInput._filterTimeout = setTimeout(() => renderGallery(), 300);
-});
-
-// Initial gallery rendering
-updateCategoryFilters();
-renderGallery();
-
-// --- Existing code ---
-
-function isImageIntent(text) {
-  return /\b(generate|create|make|draw|picture|image|photo|artwork|illustration|render|show me|visualise|visualize)\b/i.test(text || "");
-}
-
-function isUpgradeIntent(text) {
-  return /\b(upgrade|improve|enhance|update|modify|change your code|edit your code|self upgrade|self-upgrade|better ui|better memory|add feature|fix yourself)\b/i.test(text || "");
 }
 
 async function decideAction(message) {
@@ -791,66 +667,26 @@ async function generateImageFromPrompt(prompt, auto=false) {
     lastGeneratedImage = data.image;
     localStorage.setItem("chloe_last_generated_image", data.image);
 
+    addToGallery(cleanPrompt, data.image);
+
     if (!chloeAvatar) {
       chloeAvatar = data.image;
       localStorage.setItem("chloe_avatar", chloeAvatar);
       addMessage("system", "Chloe avatar set from generated image.");
     }
 
-    // Add to chat history
     history.push({
       role:"chloe",
       content:auto ? "I thought this would help." : "Image generated.",
       image:data.image
     });
+
     saveHistory();
-
-    // Try to extract tags and category from prompt
-    const { tags, category } = extractTagsAndCategory(cleanPrompt);
-
-    addImageToGallery({
-      image: data.image,
-      prompt: cleanPrompt,
-      tags: tags,
-      category: category,
-      timestamp: Date.now()
-    });
-
     statusBox.textContent = "Online";
   } catch (err) {
     bubble.textContent = "Image error: " + err.message;
     statusBox.textContent = "Online";
   }
-}
-
-// Basic heuristic to extract tags and category from prompt string
-function extractTagsAndCategory(prompt) {
-  let tags = [];
-  let category = "Uncategorized";
-
-  // Extract tags: words preceded by # or after words like 'tags:'
-  const hashTagMatches = prompt.match(/#(\w+)/g);
-  if (hashTagMatches) {
-    tags = hashTagMatches.map(t => t.slice(1).toLowerCase());
-  } else {
-    // Try looking for "tags:" pattern
-    const tagsMatch = prompt.match(/tags?: ?([^.;\n]+)[.;\n]?/i);
-    if (tagsMatch) {
-      tags = tagsMatch[1].split(/[, ]+/).map(t => t.trim().toLowerCase()).filter(t => t);
-    }
-  }
-
-  // Try to infer category from prompt keywords
-  const lowered = prompt.toLowerCase();
-  if (lowered.includes("portrait")) category = "Portraits";
-  else if (lowered.includes("landscape")) category = "Landscape";
-  else if (lowered.includes("animal")) category = "Animals";
-  else if (lowered.includes("fantasy") || lowered.includes("myth")) category = "Fantasy";
-  else if (lowered.includes("abstract")) category = "Abstract";
-  else if (lowered.includes("nature")) category = "Nature";
-  else if (lowered.includes("architecture") || lowered.includes("building")) category = "Architecture";
-
-  return { tags, category };
 }
 
 function toggleUpgradePanel() {
@@ -980,7 +816,7 @@ function editMemory() {
   if (updated !== null) {
     memory = updated;
     localStorage.setItem("chloe_memory", memory);
-    addMessage("system", "Memory updated.");
+    addMessage("system", "Memory updated locally. Press Save Memory to make it persistent.");
   }
 }
 
@@ -1002,8 +838,9 @@ setInterval(() => {
   fetch(API + "/").catch(() => {});
 }, 10 * 60 * 1000);
 
-// Init
 renderHistory();
+renderGallery();
+loadServerMemory();
 </script>
 
 </body>
