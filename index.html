@@ -247,6 +247,15 @@ pre {
   font-size: 14px;
   display: none;
 }
+.chatImage {
+  max-width: 240px;
+  max-height: 240px;
+  border-radius: 14px;
+  margin-top: 8px;
+  cursor: pointer;
+  object-fit: contain;
+  display: inline-block;
+}
 </style>
 </head>
 
@@ -592,18 +601,25 @@ function addMessage(role, text, image=null) {
 
   const div = document.createElement("div");
   div.className = "msg " + (role === "user" ? "user" : "chloe");
-  div.textContent = text;
 
   if (image) {
+    // If image is passed, insert text as well
+    const textNode = document.createElement("div");
+    textNode.textContent = text;
+    div.appendChild(textNode);
+
+    // Append image inline
     const img = document.createElement("img");
     img.src = image;
-    img.className = "generated-image";
+    img.className = "chatImage";
     img.onclick = () => {
       imageModalImg.src = image;
       imageModalText.textContent = "Full image preview. Tap anywhere to close.";
       imageModal.style.display = "block";
     };
     div.appendChild(img);
+  } else {
+    div.textContent = text;
   }
 
   row.appendChild(div);
@@ -625,7 +641,20 @@ async function typeIntoBubble(div, text) {
 
 function renderHistory() {
   chat.innerHTML = "";
-  history.forEach(m => addMessage(m.role, m.content));
+
+  history.forEach(m => {
+    // Detect if the message contains an inline image URL pattern: [image:URL]
+    const imgUrlMatch = m.content.match(/\[image:\s*(https?:\/\/[^\]]+)\]/i);
+    if (imgUrlMatch) {
+      const imageUrl = imgUrlMatch[1];
+      // Remove the image marker from text
+      const cleanText = m.content.replace(/\[image:\s*https?:\/\/[^\]]+\]/i, '').trim();
+
+      addMessage(m.role, cleanText, imageUrl);
+    } else {
+      addMessage(m.role, m.content);
+    }
+  });
 }
 
 function rememberLastImagePrompt(prompt) {
@@ -729,10 +758,11 @@ async function sendMessage() {
 
   messageBox.value = "";
 
-  const shownMessage = imageUrl ? `${message || "Analyse this image."}\n${imageUrl}` : message;
+  // If an imageUrl is present, include it inline in the user message with a marker
+  const shownMessage = imageUrl ? `${message || "Analyse this image."}\n[image: ${imageUrl}]` : message;
 
   history.push({ role:"user", content:shownMessage });
-  addMessage("user", shownMessage);
+  addMessage("user", shownMessage, imageUrl ? imageUrl : null);
   saveHistory();
 
   statusBox.textContent = "Deciding...";
