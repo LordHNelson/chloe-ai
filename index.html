@@ -88,7 +88,7 @@ header {
   color:#e9fff5;
 }
 
-.generated-image, .generated-gif {
+.generated-image {
   width:100%;
   height:auto;
   border-radius:16px;
@@ -243,11 +243,10 @@ pre {
   <textarea id="message" placeholder="Talk to Chloe..."></textarea>
 
   <input id="imageUrl" placeholder="Optional image URL for Chloe to analyse">
-  <input id="imagePrompt" placeholder="Describe an image or GIF for Chloe to generate">
+  <input id="imagePrompt" placeholder="Describe an image for Chloe to generate">
 
   <button onclick="sendMessage()">Send</button>
   <button onclick="manualGenerateImage()">Generate Image</button>
-  <button onclick="manualGenerateGif()">Generate GIF</button>
   <button class="secondary" onclick="toggleGallery()">Gallery</button>
   <button class="secondary" onclick="setLastImageAsAvatar()">Use Last Image as Avatar</button>
   <button class="secondary" onclick="editMemory()">Memory</button>
@@ -304,8 +303,6 @@ let chloeAvatar = localStorage.getItem("chloe_avatar") || "";
 let lastGeneratedImage = "";
 let gallery = loadGallery();
 let fullImageCache = {};
-let fullGifCache = {};
-let modalTimer = null;
 let lastUpgradeProposal = null;
 
 personalityBox.value = personality;
@@ -393,21 +390,17 @@ function makeThumbnail(imageSrc) {
   });
 }
 
-async function addToGallery(prompt, image, type="image", frames=null) {
+async function addToGallery(prompt, image) {
   const id = Date.now();
   const thumbnail = await makeThumbnail(image);
 
-  if (type === "gif" && frames) {
-    fullGifCache[id] = frames;
-  } else {
-    fullImageCache[id] = image;
-  }
+  fullImageCache[id] = image;
 
   gallery.push({
     id,
     prompt,
     image: thumbnail || "",
-    type,
+    type: "image",
     createdAt: new Date().toLocaleString()
   });
 
@@ -445,7 +438,7 @@ function renderGallery() {
 
     const badge = document.createElement("div");
     badge.className = "badge";
-    badge.textContent = item.type === "gif" ? "GIF LOOP" : "IMAGE";
+    badge.textContent = "IMAGE";
 
     const prompt = document.createElement("div");
     prompt.className = "galleryPrompt";
@@ -464,8 +457,7 @@ function renderGallery() {
     avatarBtn.className = "secondary";
     avatarBtn.textContent = "Set Avatar";
     avatarBtn.onclick = () => {
-      const frames = fullGifCache[item.id];
-      const src = frames?.[0] || fullImageCache[item.id] || item.image;
+      const src = fullImageCache[item.id] || item.image;
 
       if (!src) {
         addMessage("system", "This gallery item has no stored image.");
@@ -497,13 +489,6 @@ function renderGallery() {
 }
 
 function openGalleryImage(item) {
-  const frames = fullGifCache[item.id];
-
-  if (frames && frames.length) {
-    openGifModal(frames);
-    return;
-  }
-
   const full = fullImageCache[item.id];
   const src = full || item.image;
 
@@ -519,23 +504,7 @@ function openGalleryImage(item) {
   imageModal.style.display = "block";
 }
 
-function openGifModal(frames) {
-  let i = 0;
-  clearInterval(modalTimer);
-
-  imageModalImg.src = frames[0];
-  imageModalText.textContent = "GIF loop preview. Tap anywhere to close.";
-  imageModal.style.display = "block";
-
-  modalTimer = setInterval(() => {
-    i = (i + 1) % frames.length;
-    imageModalImg.src = frames[i];
-  }, 650);
-}
-
 function closeImageModal() {
-  clearInterval(modalTimer);
-  modalTimer = null;
   imageModal.style.display = "none";
   imageModalImg.src = "";
 }
@@ -546,7 +515,6 @@ function clearGallery() {
 
   gallery = [];
   fullImageCache = {};
-  fullGifCache = {};
   localStorage.removeItem("chloe_gallery");
   renderGallery();
   addMessage("system", "Gallery cleared.");
@@ -603,26 +571,6 @@ function addMessage(role, text, image=null) {
   return div;
 }
 
-function addGifMessage(role, text, frames) {
-  const bubble = addMessage(role, text);
-  const img = document.createElement("img");
-
-  img.className = "generated-gif";
-  img.src = frames[0];
-  img.onclick = () => openGifModal(frames);
-
-  bubble.appendChild(img);
-
-  let i = 0;
-  setInterval(() => {
-    if (!document.body.contains(img)) return;
-    i = (i + 1) % frames.length;
-    img.src = frames[i];
-  }, 650);
-
-  return bubble;
-}
-
 async function typeIntoBubble(div, text) {
   div.textContent = "";
   const chunks = String(text || "").match(/.{1,4}/g) || [text];
@@ -642,6 +590,24 @@ function renderHistory() {
 function rememberLastImagePrompt(prompt) {
   lastImagePrompt = prompt;
   localStorage.setItem("chloe_last_image_prompt", prompt);
+}
+
+function enhancePromptWithMotion(prompt) {
+  return `
+${prompt}
+
+Style direction:
+- cinematic lighting
+- subtle motion cues such as wind, flowing energy, movement trails, or dynamic pose
+- consistent subject
+- sharp focus
+- high detail
+- polished composition
+- safe for all audiences
+- no sexual content
+- no nudity
+- no exposed anatomy
+`;
 }
 
 function setLastImageAsAvatar() {
@@ -714,10 +680,6 @@ async function decideAction(message) {
   return await res.json();
 }
 
-function wantsGif(text) {
-  return /\b(gif|animate|animated|moving|motion|loop)\b/i.test(text || "");
-}
-
 async function sendMessage() {
   const message = messageBox.value.trim();
   const imageUrl = imageUrlBox.value.trim();
@@ -731,11 +693,6 @@ async function sendMessage() {
   history.push({ role:"user", content:shownMessage });
   addMessage("user", shownMessage);
   saveHistory();
-
-  if (wantsGif(message)) {
-    await generateGifFromPrompt(message, true);
-    return;
-  }
 
   statusBox.textContent = "Deciding...";
 
@@ -820,101 +777,6 @@ async function manualGenerateImage() {
   await generateImageFromPrompt(prompt, false);
 }
 
-async function manualGenerateGif() {
-  const prompt = imagePromptBox.value.trim() || messageBox.value.trim();
-
-  if (!prompt) {
-    addMessage("system", "Add a GIF prompt first.");
-    return;
-  }
-
-  await generateGifFromPrompt(prompt, false);
-}
-
-function framePrompt(basePrompt, frameNumber, totalFrames) {
-  return `
-Create frame ${frameNumber} of ${totalFrames} for a short looping animated GIF.
-
-Base scene:
-${basePrompt}
-
-Animation direction:
-- subtle motion
-- consistent character and scene
-- small changes only between frames
-- cinematic lighting
-- clean composition
-- safe for all audiences
-- no sexual content
-- no nudity
-- no exposed anatomy
-`;
-}
-
-async function generateGifFromPrompt(prompt, auto=false) {
-  const cleanPrompt = String(prompt || "").trim();
-
-  if (!cleanPrompt) {
-    addMessage("system", "No GIF prompt available.");
-    return;
-  }
-
-  rememberLastImagePrompt(cleanPrompt);
-
-  if (auto) {
-    addMessage("system", "Chloe decided an animated GIF loop would help.");
-  }
-
-  addMessage("user", auto ? "Chloe animated: " + cleanPrompt : "Generate GIF: " + cleanPrompt);
-
-  statusBox.textContent = "Generating GIF...";
-  const bubble = addMessage("chloe", "Creating animated loop... frame 1 of 4");
-
-  try {
-    const frames = [];
-    const totalFrames = 4;
-
-    for (let i = 1; i <= totalFrames; i++) {
-      bubble.textContent = "Creating animated loop... frame " + i + " of " + totalFrames;
-
-      const res = await fetch(API + "/generate-image", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({
-          prompt: framePrompt(cleanPrompt, i, totalFrames),
-          personality: personalityBox.value
-        })
-      });
-
-      const data = await res.json();
-
-      if (data.error) throw new Error(data.error);
-      if (!data.image) throw new Error("No frame returned.");
-
-      frames.push(data.image);
-    }
-
-    bubble.remove();
-
-    addGifMessage("chloe", auto ? "I made this animated loop 👇" : "Here’s the GIF-style loop 👇", frames);
-
-    lastGeneratedImage = frames[0];
-
-    await addToGallery(cleanPrompt, frames[0], "gif", frames);
-
-    history.push({
-      role:"chloe",
-      content:auto ? "I made this animated loop." : "GIF-style loop generated."
-    });
-
-    saveHistory();
-    statusBox.textContent = "Online";
-  } catch (err) {
-    bubble.textContent = "GIF error: " + err.message;
-    statusBox.textContent = "Online";
-  }
-}
-
 async function generateImageFromPrompt(prompt, auto=false) {
   const cleanPrompt = String(prompt || "").trim();
 
@@ -926,7 +788,7 @@ async function generateImageFromPrompt(prompt, auto=false) {
   rememberLastImagePrompt(cleanPrompt);
 
   if (auto) {
-    addMessage("system", "Chloe decided an image would help.");
+    addMessage("system", "Chloe decided a visual would help.");
   }
 
   addMessage("user", auto ? "Chloe visualised: " + cleanPrompt : "Generate image: " + cleanPrompt);
@@ -935,11 +797,13 @@ async function generateImageFromPrompt(prompt, auto=false) {
   const bubble = addMessage("chloe", "Creating image...");
 
   try {
+    const enhancedPrompt = enhancePromptWithMotion(cleanPrompt);
+
     const res = await fetch(API + "/generate-image", {
       method:"POST",
       headers:{ "Content-Type":"application/json" },
       body: JSON.stringify({
-        prompt: cleanPrompt,
+        prompt: enhancedPrompt,
         personality: personalityBox.value
       })
     });
@@ -948,7 +812,7 @@ async function generateImageFromPrompt(prompt, auto=false) {
 
     if (data.error) throw new Error(data.error);
 
-    bubble.textContent = auto ? "I thought this would help 👇" : "Here’s what I made 👇";
+    bubble.textContent = auto ? "I thought this would help 👇" : "Here’s what I created 👇";
 
     const img = document.createElement("img");
     img.src = data.image;
@@ -962,7 +826,7 @@ async function generateImageFromPrompt(prompt, auto=false) {
 
     lastGeneratedImage = data.image;
 
-    await addToGallery(cleanPrompt, data.image, "image");
+    await addToGallery(cleanPrompt, data.image);
 
     if (!chloeAvatar) {
       chloeAvatar = data.image;
