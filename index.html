@@ -1,589 +1,400 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chloe AI</title>
-  <style>
-    body {
-      margin: 0;
-      background: #11131a;
-      color: white;
-      font-family: system-ui, sans-serif;
-    }
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chloe AI</title>
 
-    header {
-      padding: 18px 20px;
-      font-size: 30px;
-      font-weight: 800;
-      border-bottom: 1px solid #2a2d3a;
-      background: #11131a;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
+<style>
+body {
+  margin:0;
+  background:#11131a;
+  color:white;
+  font-family:system-ui, sans-serif;
+}
 
-    #status {
-      float: right;
-      font-size: 14px;
-      background: #222638;
-      padding: 8px 14px;
-      border-radius: 999px;
-      margin-top: 4px;
-    }
+header {
+  padding:18px;
+  font-size:28px;
+  font-weight:800;
+  border-bottom:1px solid #2a2d3a;
+}
 
-    #chat {
-      height: 48vh;
-      overflow-y: auto;
-      padding: 18px;
-      scroll-behavior: smooth;
-    }
+#status {
+  float:right;
+  font-size:13px;
+  background:#222638;
+  padding:7px 12px;
+  border-radius:999px;
+}
 
-    .msg {
-      max-width: 84%;
-      margin: 12px 0;
-      padding: 14px 16px;
-      border-radius: 18px;
-      white-space: pre-wrap;
-      line-height: 1.45;
-      font-size: 16px;
-    }
+#chat {
+  height:50vh;
+  overflow-y:auto;
+  padding:16px;
+}
 
-    .user {
-      margin-left: auto;
-      background: #8b6cff;
-    }
+.msg {
+  max-width:84%;
+  margin:10px 0;
+  padding:13px 15px;
+  border-radius:16px;
+  white-space:pre-wrap;
+  line-height:1.45;
+}
 
-    .chloe {
-      margin-right: auto;
-      background: #252a3d;
-    }
+.user {
+  margin-left:auto;
+  background:#8b6cff;
+}
 
-    .system {
-      margin: 12px auto;
-      background: transparent;
-      color: #aaa;
-      text-align: center;
-      font-size: 14px;
-    }
+.chloe {
+  margin-right:auto;
+  background:#252a3d;
+}
 
-    .suggestion {
-      margin: 12px auto;
-      background: #173b2d;
-      border: 1px solid #20a46b;
-      color: #e9fff5;
-    }
+.system {
+  margin:12px auto;
+  color:#aaa;
+  text-align:center;
+  font-size:14px;
+}
 
-    .generated-image {
-      width: 100%;
-      max-width: 100%;
-      height: auto;
-      border-radius: 16px;
-      margin-top: 12px;
-      display: block;
-      object-fit: contain;
-    }
+.typing {
+  opacity:.75;
+  font-style:italic;
+}
 
-    #controls {
-      padding: 14px;
-      border-top: 1px solid #2a2d3a;
-      background: #151824;
-    }
+.generated-image {
+  width:100%;
+  height:auto;
+  border-radius:16px;
+  margin-top:12px;
+  display:block;
+}
 
-    textarea, input, select {
-      width: 100%;
-      box-sizing: border-box;
-      border: none;
-      border-radius: 14px;
-      padding: 14px;
-      margin-bottom: 10px;
-      background: #262b3d;
-      color: white;
-      font-size: 16px;
-    }
+#controls {
+  padding:12px;
+  border-top:1px solid #2a2d3a;
+  background:#151824;
+}
 
-    textarea {
-      min-height: 86px;
-      resize: vertical;
-    }
+textarea, input, select {
+  width:100%;
+  box-sizing:border-box;
+  margin-bottom:8px;
+  padding:12px;
+  border-radius:12px;
+  border:none;
+  background:#262b3d;
+  color:white;
+  font-size:16px;
+}
 
-    button {
-      border: none;
-      border-radius: 14px;
-      padding: 13px 16px;
-      margin: 4px 4px 4px 0;
-      background: #8b6cff;
-      color: white;
-      font-size: 15px;
-      font-weight: 700;
-    }
+textarea {
+  min-height:80px;
+}
 
-    button.secondary {
-      background: #262b3d;
-    }
+button {
+  padding:11px 13px;
+  margin:4px 4px 4px 0;
+  border:none;
+  border-radius:12px;
+  background:#8b6cff;
+  color:white;
+  font-weight:700;
+}
 
-    button.danger {
-      background: #4b2630;
-    }
+button.secondary {
+  background:#262b3d;
+}
 
-    button.upgrade {
-      background: #20a46b;
-    }
-
-    #upgradePanel {
-      display: none;
-      border-top: 1px solid #2a2d3a;
-      padding-top: 10px;
-      margin-top: 10px;
-    }
-
-    pre {
-      white-space: pre-wrap;
-      background: #0c0e14;
-      padding: 12px;
-      border-radius: 14px;
-      max-height: 260px;
-      overflow-y: auto;
-      font-size: 13px;
-    }
-  </style>
+button.danger {
+  background:#4b2630;
+}
+</style>
 </head>
 
 <body>
-  <header>
-    Chloe AI
-    <span id="status">Online</span>
-  </header>
 
-  <div id="chat"></div>
+<header>
+  Chloe AI
+  <span id="status">Online</span>
+</header>
 
-  <div id="controls">
-    <select id="personality">
-      <option value="balanced">Balanced Chloe</option>
-      <option value="warmer">Warmer Chloe</option>
-      <option value="playful">Playful Chloe</option>
-      <option value="technical">Technical Chloe</option>
-      <option value="direct">Direct Chloe</option>
-      <option value="flirty">Flirty Chloe</option>
-    </select>
+<div id="chat"></div>
 
-    <textarea id="message" placeholder="Talk to Chloe..."></textarea>
+<div id="controls">
+  <select id="personality">
+    <option value="balanced">Balanced Chloe</option>
+    <option value="warmer">Warmer Chloe</option>
+    <option value="playful">Playful Chloe</option>
+    <option value="technical">Technical Chloe</option>
+    <option value="direct">Direct Chloe</option>
+    <option value="flirty">Flirty Chloe</option>
+  </select>
 
-    <input id="imageUrl" placeholder="Optional image URL for Chloe to analyse">
-    <input id="imagePrompt" placeholder="Describe an image for Chloe to generate">
+  <textarea id="message" placeholder="Talk to Chloe..."></textarea>
 
-    <button onclick="sendMessage()">Send</button>
-    <button onclick="manualGenerateImage()">Generate Image</button>
-    <button class="secondary" onclick="editMemory()">Memory</button>
-    <button class="secondary" onclick="exportChat()">Export</button>
-    <button class="upgrade" onclick="toggleUpgradePanel()">Upgrade Chloe</button>
-    <button class="upgrade" onclick="suggestUpgrade()">Suggest Upgrade</button>
-    <button class="danger" onclick="clearChat()">Clear</button>
+  <input id="imagePrompt" placeholder="Describe an image for Chloe to generate">
 
-    <div id="upgradePanel">
-      <textarea id="upgradeRequest" placeholder="Describe the upgrade Chloe should make to her own code..."></textarea>
-      <button class="upgrade" onclick="proposeUpgrade()">Propose Upgrade</button>
-      <button class="upgrade" onclick="applyUpgrade()">Approve & Apply</button>
-      <pre id="upgradePreview">No proposal yet.</pre>
-    </div>
-  </div>
+  <button onclick="sendMessage()">Send</button>
+  <button onclick="generateImage()">Generate Image</button>
+  <button class="secondary" onclick="editMemory()">Memory</button>
+  <button class="secondary" onclick="exportChat()">Export</button>
+  <button class="danger" onclick="clearChat()">Clear</button>
+</div>
 
-  <script>
-    const API_ROOT = "https://chloe-ai-af3m.onrender.com";
+<script>
+const API = "https://chloe-ai-af3m.onrender.com";
 
-    const BACKEND_URL = API_ROOT + "/chat";
-    const IMAGE_URL = API_ROOT + "/generate-image";
-    const SUGGEST_UPGRADE_URL = API_ROOT + "/suggest-upgrade";
-    const PROPOSE_UPGRADE_URL = API_ROOT + "/propose-upgrade";
-    const APPLY_UPGRADE_URL = API_ROOT + "/apply-upgrade";
-    const PING_URL = API_ROOT + "/";
+const chat = document.getElementById("chat");
+const messageBox = document.getElementById("message");
+const imagePromptBox = document.getElementById("imagePrompt");
+const personalityBox = document.getElementById("personality");
+const statusBox = document.getElementById("status");
 
-    const chat = document.getElementById("chat");
-    const messageBox = document.getElementById("message");
-    const imageBox = document.getElementById("imageUrl");
-    const imagePromptBox = document.getElementById("imagePrompt");
-    const personalityBox = document.getElementById("personality");
-    const statusBox = document.getElementById("status");
-    const upgradePanel = document.getElementById("upgradePanel");
-    const upgradeRequestBox = document.getElementById("upgradeRequest");
-    const upgradePreview = document.getElementById("upgradePreview");
+let history = loadHistory();
+let memory = localStorage.getItem("chloe_memory") || "";
+let personality = localStorage.getItem("chloe_personality") || "balanced";
 
-    let history = loadHistory();
-    let memory = localStorage.getItem("chloe_memory") || "";
-    let personality = localStorage.getItem("chloe_personality") || "balanced";
-    let lastUpgradeProposal = null;
+personalityBox.value = personality;
 
-    personalityBox.value = personality;
+personalityBox.addEventListener("change", () => {
+  personality = personalityBox.value;
+  localStorage.setItem("chloe_personality", personality);
+  addMessage("system", "Personality changed to: " + personalityBox.options[personalityBox.selectedIndex].text);
+});
 
-    personalityBox.addEventListener("change", () => {
-      personality = personalityBox.value;
-      localStorage.setItem("chloe_personality", personality);
-      addMessage("system", "Personality changed to: " + personalityBox.options[personalityBox.selectedIndex].text);
+function loadHistory() {
+  try {
+    return JSON.parse(localStorage.getItem("chloe_history") || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function saveHistory() {
+  const trimmed = history.slice(-20);
+  history = trimmed;
+
+  try {
+    localStorage.setItem("chloe_history", JSON.stringify(trimmed));
+  } catch {
+    localStorage.removeItem("chloe_history");
+    history = [];
+    addMessage("system", "Storage was full, so old chat history was cleared.");
+  }
+}
+
+function addMessage(role, text, image=null) {
+  const div = document.createElement("div");
+  div.className =
+    role === "user" ? "msg user" :
+    role === "system" ? "msg system" :
+    "msg chloe";
+
+  div.textContent = text;
+
+  if (image) {
+    const img = document.createElement("img");
+    img.src = image;
+    img.className = "generated-image";
+    div.appendChild(img);
+  }
+
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+  return div;
+}
+
+async function typeIntoBubble(div, text) {
+  div.textContent = "";
+
+  const chunks = text.match(/.{1,4}/g) || [text];
+
+  for (const chunk of chunks) {
+    div.textContent += chunk;
+    chat.scrollTop = chat.scrollHeight;
+    await new Promise(r => setTimeout(r, 18));
+  }
+}
+
+function renderHistory() {
+  chat.innerHTML = "";
+  history.forEach(m => addMessage(m.role, m.content, m.image || null));
+}
+
+function buildMemoryContext() {
+  return `
+Chloe memory:
+${memory || "No saved memory yet."}
+
+Important:
+Use this memory naturally when helpful, but don't repeat it unless relevant.
+`;
+}
+
+function isImageIntent(text) {
+  return /\b(generate|create|make|draw|picture|image|photo|artwork|illustration|render)\b/i.test(text || "");
+}
+
+function enhanceImagePrompt(prompt) {
+  const personalityStyle = {
+    balanced: "polished, cinematic, detailed, visually clear",
+    warmer: "warm lighting, emotionally rich, inviting, soft atmosphere",
+    playful: "vivid, playful, colourful, expressive, dynamic",
+    technical: "clean, precise, detailed, high-resolution, technically accurate",
+    direct: "simple, practical, realistic, clear composition",
+    flirty: "stylish, confident, elegant, subtly seductive, tasteful, non-explicit"
+  }[personalityBox.value] || "polished, cinematic, detailed";
+
+  return `
+${prompt}
+
+Style:
+${personalityStyle}
+
+Quality:
+high detail, strong composition, balanced lighting, professional finish
+
+Safety:
+tasteful, non-explicit, no nudity, no sexual content
+`;
+}
+
+async function sendMessage() {
+  const message = messageBox.value.trim();
+  if (!message) return;
+
+  messageBox.value = "";
+
+  history.push({ role:"user", content:message });
+  addMessage("user", message);
+  saveHistory();
+
+  if (isImageIntent(message)) {
+    await generateImageFromPrompt(message);
+    return;
+  }
+
+  statusBox.textContent = "Thinking...";
+  const bubble = addMessage("chloe", "Chloe is thinking...");
+
+  try {
+    const res = await fetch(API + "/chat", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({
+        message: buildMemoryContext() + "\n\nJohn says:\n" + message,
+        history,
+        memory,
+        personality: personalityBox.value
+      })
     });
 
-    function loadHistory() {
-      try {
-        return JSON.parse(localStorage.getItem("chloe_history") || "[]");
-      } catch {
-        return [];
-      }
+    const data = await res.json();
+    const reply = data.reply || "No response returned.";
+
+    await typeIntoBubble(bubble, reply);
+
+    history.push({ role:"chloe", content:reply });
+    saveHistory();
+
+    statusBox.textContent = "Online";
+  } catch (err) {
+    bubble.textContent = "Error: " + err.message;
+    statusBox.textContent = "Offline";
+  }
+}
+
+async function generateImage() {
+  const prompt = imagePromptBox.value.trim() || messageBox.value.trim();
+
+  if (!prompt) {
+    addMessage("system", "Add an image prompt first.");
+    return;
+  }
+
+  await generateImageFromPrompt(prompt);
+}
+
+async function generateImageFromPrompt(prompt) {
+  const enhancedPrompt = enhanceImagePrompt(prompt);
+
+  history.push({ role:"user", content:"Generate image: " + prompt });
+  addMessage("user", "Generate image: " + prompt);
+  saveHistory();
+
+  statusBox.textContent = "Generating image...";
+  const bubble = addMessage("chloe", "Creating something for you...");
+
+  try {
+    const res = await fetch(API + "/generate-image", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({
+        prompt: enhancedPrompt,
+        personality: personalityBox.value
+      })
+    });
+
+    const data = await res.json();
+
+    if (data.error) {
+      throw new Error(data.error);
     }
 
-    function saveHistory() {
-      const trimmed = history.slice(-25);
+    bubble.textContent = "Here’s what I made 👇";
+
+    const img = document.createElement("img");
+    img.src = data.image;
+    img.className = "generated-image";
+    bubble.appendChild(img);
+
+    history.push({
+      role:"chloe",
+      content:"Image generated.",
+      image:data.image
+    });
+
+    saveHistory();
+    statusBox.textContent = "Online";
+  } catch (err) {
+    bubble.textContent = "Image error: " + err.message;
+    statusBox.textContent = "Online";
+  }
+}
+
+function editMemory() {
+  const updated = prompt("Chloe memory:", memory);
+
+  if (updated !== null) {
+    memory = updated;
+    localStorage.setItem("chloe_memory", memory);
+    addMessage("system", "Memory updated.");
+  }
+}
+
+function clearChat() {
+  history = [];
+  localStorage.removeItem("chloe_history");
+  renderHistory();
+}
+
+function exportChat() {
+  const text = history.map(m => `${m.role}: ${m.content}`).join("\n\n");
+
+  navigator.clipboard.writeText(text)
+    .then(() => addMessage("system", "Chat copied to clipboard."))
+    .catch(() => addMessage("system", "Could not copy chat."));
+}
+
+setInterval(() => {
+  fetch(API + "/").catch(() => {});
+}, 10 * 60 * 1000);
+
+renderHistory();
+</script>
 
-      try {
-        localStorage.setItem("chloe_history", JSON.stringify(trimmed));
-        history = trimmed;
-      } catch {
-        localStorage.removeItem("chloe_history");
-        history = [];
-        addMessage("system", "Storage was full, so Chloe cleared old chat history.");
-      }
-    }
-
-    function isImageIntent(text) {
-      return /\b(generate|create|make|draw|picture|image|photo|artwork|illustration|render)\b/i.test(text || "");
-    }
-
-    function isUpgradeIntent(text) {
-      return /\b(upgrade|improve|enhance|update|modify|change your code|edit your code|self upgrade|self-upgrade|better ui|better memory|add feature|fix yourself)\b/i.test(text || "");
-    }
-
-    function cleanImagePrompt(text) {
-      return String(text || "")
-        .replace(/can you/gi, "")
-        .replace(/please/gi, "")
-        .replace(/generate/gi, "")
-        .replace(/create/gi, "")
-        .replace(/make/gi, "")
-        .replace(/draw/gi, "")
-        .replace(/an image of/gi, "")
-        .replace(/a picture of/gi, "")
-        .replace(/image of/gi, "")
-        .trim();
-    }
-
-    function addMessage(role, content, imageSrc = "") {
-      const div = document.createElement("div");
-
-      div.className = "msg " + (
-        role === "user" ? "user" :
-        role === "system" ? "system" :
-        role === "suggestion" ? "suggestion" :
-        "chloe"
-      );
-
-      div.textContent = content;
-
-      if (imageSrc) {
-        const img = document.createElement("img");
-        img.src = imageSrc;
-        img.className = "generated-image";
-        div.appendChild(img);
-      }
-
-      chat.appendChild(div);
-      chat.scrollTop = chat.scrollHeight;
-    }
-
-    function renderHistory() {
-      chat.innerHTML = "";
-      history.forEach(m => addMessage(m.role, m.content, m.imageSrc || ""));
-    }
-
-    async function sendMessage() {
-      const message = messageBox.value.trim();
-      const imageUrl = imageBox.value.trim();
-
-      if (!message && !imageUrl) return;
-
-      messageBox.value = "";
-
-      const shownMessage = imageUrl ? `${message || "Analyse this image."}\n${imageUrl}` : message;
-
-      history.push({ role: "user", content: shownMessage });
-      addMessage("user", shownMessage);
-      saveHistory();
-
-      if (!imageUrl && isImageIntent(message)) {
-        const prompt = cleanImagePrompt(message) || imagePromptBox.value.trim() || message;
-        await generateImageFromPrompt(prompt);
-        return;
-      }
-
-      if (!imageUrl && isUpgradeIntent(message)) {
-        addMessage("chloe", "I can prepare that upgrade now. Opening the upgrade panel and drafting a proposal for your approval.");
-        openUpgradePanel(message);
-        await proposeUpgrade(message);
-        return;
-      }
-
-      statusBox.textContent = "Thinking...";
-
-      try {
-        const res = await fetch(BACKEND_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            message,
-            imageUrl,
-            memory,
-            history,
-            personality: personalityBox.value
-          })
-        });
-
-        const data = await res.json();
-        const reply = data.reply || "No reply returned.";
-
-        if (data.intent === "image") {
-          await generateImageFromPrompt(cleanImagePrompt(message) || message);
-          return;
-        }
-
-        if (data.intent === "upgrade") {
-          addMessage("chloe", reply);
-          openUpgradePanel(message);
-          await proposeUpgrade(message);
-          return;
-        }
-
-        history.push({ role: "chloe", content: reply });
-        addMessage("chloe", reply);
-        saveHistory();
-
-        statusBox.textContent = "Online";
-      } catch (err) {
-        addMessage("chloe", "Error: " + err.message);
-        statusBox.textContent = "Offline";
-      }
-    }
-
-    async function manualGenerateImage() {
-      const prompt = imagePromptBox.value.trim() || messageBox.value.trim();
-
-      if (!prompt) {
-        addMessage("system", "Add an image prompt first.");
-        return;
-      }
-
-      await generateImageFromPrompt(prompt);
-    }
-
-    async function generateImageFromPrompt(prompt) {
-      const cleanPrompt = String(prompt || "").trim();
-
-      if (!cleanPrompt) {
-        addMessage("system", "Add an image prompt first.");
-        return;
-      }
-
-      history.push({ role: "user", content: "Generate image: " + cleanPrompt });
-      addMessage("user", "Generate image: " + cleanPrompt);
-      saveHistory();
-
-      statusBox.textContent = "Generating image...";
-
-      try {
-        const res = await fetch(IMAGE_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            prompt: cleanPrompt,
-            personality: personalityBox.value
-          })
-        });
-
-        const data = await res.json();
-
-        if (data.error) {
-          throw new Error(data.error);
-        }
-
-        history.push({
-          role: "chloe",
-          content: "Image generated:",
-          imageSrc: data.image
-        });
-
-        addMessage("chloe", "Image generated:", data.image);
-        saveHistory();
-
-        statusBox.textContent = "Online";
-      } catch (err) {
-        addMessage("chloe", "Image generation error: " + err.message);
-        statusBox.textContent = "Online";
-      }
-    }
-
-    function toggleUpgradePanel() {
-      upgradePanel.style.display =
-        upgradePanel.style.display === "none" || !upgradePanel.style.display
-          ? "block"
-          : "none";
-    }
-
-    function openUpgradePanel(requestText = "") {
-      upgradePanel.style.display = "block";
-      if (requestText) {
-        upgradeRequestBox.value = requestText;
-      }
-    }
-
-    async function suggestUpgrade() {
-      statusBox.textContent = "Thinking of an upgrade...";
-
-      try {
-        const res = await fetch(SUGGEST_UPGRADE_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            history,
-            memory,
-            personality: personalityBox.value
-          })
-        });
-
-        const data = await res.json();
-
-        if (data.error) {
-          throw new Error(data.error);
-        }
-
-        const text = `Suggested upgrade: ${data.title}\n\nWhy: ${data.reason}\n\nRequest: ${data.request}`;
-
-        addMessage("suggestion", text);
-        openUpgradePanel(data.request);
-
-        statusBox.textContent = "Online";
-      } catch (err) {
-        addMessage("chloe", "Upgrade suggestion error: " + err.message);
-        statusBox.textContent = "Online";
-      }
-    }
-
-    async function proposeUpgrade(optionalRequest = "") {
-      const request = String(optionalRequest || upgradeRequestBox.value || "").trim();
-
-      if (!request) {
-        addMessage("system", "Describe the upgrade first.");
-        return;
-      }
-
-      upgradeRequestBox.value = request;
-      statusBox.textContent = "Planning upgrade...";
-      upgradePreview.textContent = "Chloe is preparing an upgrade proposal...";
-
-      try {
-        const res = await fetch(PROPOSE_UPGRADE_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ request })
-        });
-
-        const data = await res.json();
-
-        if (data.error) {
-          throw new Error(data.error);
-        }
-
-        lastUpgradeProposal = data;
-        upgradePreview.textContent = JSON.stringify(data, null, 2);
-
-        history.push({
-          role: "chloe",
-          content: "Upgrade proposal ready. Review it, then press Approve & Apply if you want me to commit it."
-        });
-
-        addMessage("chloe", "Upgrade proposal ready. Review it, then press Approve & Apply if you want me to commit it.");
-        saveHistory();
-
-        statusBox.textContent = "Online";
-      } catch (err) {
-        upgradePreview.textContent = "Upgrade proposal error: " + err.message;
-        addMessage("chloe", "Upgrade proposal error: " + err.message);
-        statusBox.textContent = "Online";
-      }
-    }
-
-    async function applyUpgrade() {
-      if (!lastUpgradeProposal) {
-        addMessage("system", "No upgrade proposal to apply.");
-        return;
-      }
-
-      const ok = confirm("Approve this upgrade and commit it to GitHub?");
-      if (!ok) return;
-
-      statusBox.textContent = "Applying upgrade...";
-
-      try {
-        const res = await fetch(APPLY_UPGRADE_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(lastUpgradeProposal)
-        });
-
-        const data = await res.json();
-
-        if (data.error) {
-          throw new Error(data.error);
-        }
-
-        history.push({
-          role: "chloe",
-          content: "Upgrade committed. Render deploy has been triggered. Refresh in a minute or two."
-        });
-
-        addMessage("chloe", "Upgrade committed. Render deploy has been triggered. Refresh in a minute or two.");
-        saveHistory();
-
-        statusBox.textContent = "Online";
-      } catch (err) {
-        addMessage("chloe", "Apply upgrade error: " + err.message);
-        statusBox.textContent = "Online";
-      }
-    }
-
-    function editMemory() {
-      const updated = prompt("Chloe memory:", memory);
-
-      if (updated !== null) {
-        memory = updated;
-        localStorage.setItem("chloe_memory", memory);
-        addMessage("system", "Memory updated.");
-      }
-    }
-
-    function clearChat() {
-      history = [];
-      localStorage.removeItem("chloe_history");
-      renderHistory();
-    }
-
-    function exportChat() {
-      const text = history.map(m => `${m.role}: ${m.content}`).join("\n\n");
-
-      navigator.clipboard.writeText(text)
-        .then(() => addMessage("system", "Chat copied to clipboard."))
-        .catch(() => addMessage("system", "Could not copy chat."));
-    }
-
-    setInterval(() => {
-      fetch(PING_URL).catch(() => {});
-    }, 10 * 60 * 1000);
-
-    renderHistory();
-  </script>
 </body>
 </html>
