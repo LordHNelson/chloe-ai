@@ -218,6 +218,12 @@ pre {
   overflow-y:auto;
   font-size:13px;
 }
+
+#message.dragover {
+  border: 2px dashed #8b6cff;
+  background-color: #1f2150;
+  outline-offset: -6px;
+}
 </style>
 </head>
 
@@ -992,9 +998,72 @@ function exportChat() {
     .catch(() => addMessage("system", "Could not copy chat."));
 }
 
+// Periodic ping to keep app alive
 setInterval(() => {
   fetch(API + "/").catch(() => {});
 }, 10 * 60 * 1000);
+
+
+// Enhance message box for drag-and-drop & paste image functionality
+
+messageBox.addEventListener("dragover", e => {
+  e.preventDefault();
+  messageBox.classList.add("dragover");
+});
+
+messageBox.addEventListener("dragleave", e => {
+  e.preventDefault();
+  messageBox.classList.remove("dragover");
+});
+
+messageBox.addEventListener("drop", async (e) => {
+  e.preventDefault();
+  messageBox.classList.remove("dragover");
+
+  const items = e.dataTransfer.items;
+  if (!items) return;
+
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].kind === "file") {
+      const file = items[i].getAsFile();
+      if (file && file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          if (event.target && typeof event.target.result === "string") {
+            imageUrlBox.value = event.target.result;
+            addMessage("system", "Image dropped and loaded in the image URL box.");
+          }
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+    }
+  }
+});
+
+// Also support paste for images (clipboard image data)
+messageBox.addEventListener("paste", (e) => {
+  const items = e.clipboardData.items;
+  if (!items) return;
+
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].kind === "file") {
+      const file = items[i].getAsFile();
+      if (file && file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          if (event.target && typeof event.target.result === "string") {
+            imageUrlBox.value = event.target.result;
+            addMessage("system", "Image pasted and loaded in the image URL box.");
+          }
+        };
+        reader.readAsDataURL(file);
+        e.preventDefault();
+        return;
+      }
+    }
+  }
+});
 
 renderHistory();
 renderGallery();
