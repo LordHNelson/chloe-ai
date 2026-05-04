@@ -17,6 +17,7 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const RENDER_DEPLOY_HOOK_URL = process.env.RENDER_DEPLOY_HOOK_URL;
 
 const ALLOWED_UPGRADE_FILES = ["server.js", "index.html", "package.json"];
+const MEMORY_FILE = "chloe_memory.json";
 
 const BASE_PROMPT = `
 You are Chloe, John's standalone AI assistant.
@@ -30,6 +31,7 @@ You can:
 - Decide when an image would help the conversation
 - Suggest upgrades to your own app
 - Prepare code upgrades for John to review and approve
+- Use persistent memory saved by John
 
 Rules:
 - Do not say you cannot generate images. The app has an image generator.
@@ -46,8 +48,57 @@ function personalityText(mode) {
     playful: "Witty, cheeky, playful, and fun while still being useful.",
     technical: "Precise, technical, careful, and step-by-step.",
     direct: "Concise, blunt, practical, and action-focused.",
-    flirty: "Charming, confident, lightly teasing, and suggestive without becoming explicit."
+    flirty: "Charming, confident, lightly teasing, tasteful, and non-explicit."
   }[mode] || "Friendly, useful, clear, and practical.";
+}
+
+function sanitizeImagePrompt(prompt) {
+  let p = String(prompt || "");
+
+  const riskyPhrases = [
+    "translucent skin",
+    "see-through skin",
+    "under skin",
+    "beneath skin",
+    "inside body",
+    "anatomy visible",
+    "visible anatomy",
+    "nude",
+    "naked",
+    "bare skin",
+    "revealing",
+    "sensual",
+    "sexual",
+    "erotic",
+    "seductive",
+    "provocative"
+  ];
+
+  for (const phrase of riskyPhrases) {
+    p = p.replace(new RegExp(phrase, "gi"), "");
+  }
+
+  p = p.replace(/female figure/gi, "humanoid AI avatar");
+  p = p.replace(/woman/gi, "AI assistant");
+  p = p.replace(/girl/gi, "AI assistant");
+  p = p.replace(/body/gi, "avatar design");
+  p = p.replace(/skin/gi, "smooth metallic surface");
+
+  return `
+${p}
+
+Safe visual direction:
+- futuristic humanoid AI avatar
+- fully clothed or non-human synthetic design
+- elegant sci-fi suit or holographic armour
+- glowing external circuit patterns on clothing or armour
+- no nudity
+- no exposed anatomy
+- no sexual content
+- professional cinematic concept art
+- friendly, intelligent, warm expression
+- high detail, polished lighting, clean composition
+`.trim();
 }
 
 function extractJson(text) {
@@ -114,20 +165,57 @@ async function getGithubFile(filePath) {
 }
 
 async function updateGithubFile(filePath, content, message) {
-  const existing = await getGithubFile(filePath);
+  let sha = null;
+
+  try {
+    const existing = await getGithubFile(filePath);
+    sha = existing.sha;
+  } catch {
+    sha = null;
+  }
+
+  const body = {
+    message,
+    content: Buffer.from(content, "utf8").toString("base64"),
+    branch: GITHUB_BRANCH
+  };
+
+  if (sha) body.sha = sha;
 
   return githubRequest(
     `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${filePath}`,
     {
       method: "PUT",
-      body: JSON.stringify({
-        message,
-        content: Buffer.from(content, "utf8").toString("base64"),
-        sha: existing.sha,
-        branch: GITHUB_BRANCH
-      })
+      body: JSON.stringify(body)
     }
   );
+}
+
+async function loadPersistentMemory() {
+  try {
+    const file = await getGithubFile(MEMORY_FILE);
+    return JSON.parse(file.content);
+  } catch {
+    return {
+      memory: "",
+      updatedAt: null
+    };
+  }
+}
+
+async function savePersistentMemory(memoryText) {
+  const data = {
+    memory: String(memoryText || "").slice(0, 12000),
+    updatedAt: new Date().toISOString()
+  };
+
+  await updateGithubFile(
+    MEMORY_FILE,
+    JSON.stringify(data, null, 2),
+    "Update Chloe persistent memory"
+  );
+
+  return data;
 }
 
 function validateUpgradeFiles(files) {
@@ -176,6 +264,25 @@ app.get("/", (req, res) => {
   res.send("Chloe AI is running.");
 });
 
+app.get("/memory", async (req, res) => {
+  try {
+    const data = await loadPersistentMemory();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Could not load memory." });
+  }
+});
+
+app.post("/memory", async (req, res) => {
+  try {
+    const { memory = "" } = req.body || {};
+    const data = await savePersistentMemory(memory);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Could not save memory." });
+  }
+});
+
 app.post("/decide-action", async (req, res) => {
   try {
     const {
@@ -185,6 +292,9 @@ app.post("/decide-action", async (req, res) => {
       personality = "balanced",
       lastImagePrompt = ""
     } = req.body || {};
+
+    const persistent = await loadPersistentMemory();
+    const combinedMemory = `${persistent.memory || ""}\n\nBrowser memory:\n${memory || ""}`.trim();
 
     const historyText = Array.isArray(history)
       ? history.slice(-10).map(m => `${m.role}: ${m.content}`).join("\n")
@@ -197,35 +307,34 @@ You are Chloe's action decision engine.
 
 Return ONLY JSON. No markdown.
 
-Decide what Chloe should do next.
-
 Actions:
-- chat: normal reply only
-- image: generate an image only
-- chat_and_image: reply, then generate an image
-- retry_image: regenerate the previous image prompt
-- upgrade: prepare an upgrade proposal
+- chat
+- image
+- chat_and_image
+- retry_image
+- upgrade
 
 Rules:
 - Use image/chat_and_image when visual output would genuinely help.
 - Use retry_image if John says again, retry, redo, one more, make it cooler, try again, and there is a last image prompt.
-- Do not create explicit sexual content.
-- Keep image prompts tasteful and non-explicit.
+- Keep image prompts safe, tasteful, fully clothed or non-human synthetic.
+- Do not include words like nude, naked, translucent skin, see-through skin, under skin, exposed body, erotic, sexual, sensual, provocative.
+- If describing Chloe visually, make her a futuristic AI avatar wearing a sleek sci-fi suit or holographic armour.
 - Improve image prompts so they are detailed and useful.
 
 JSON format:
 {
   "action": "chat | image | chat_and_image | retry_image | upgrade",
   "reply": "short natural response to John",
-  "imagePrompt": "enhanced image prompt if image is needed, otherwise empty string",
+  "imagePrompt": "enhanced safe image prompt if image is needed, otherwise empty string",
   "upgradeRequest": "upgrade request if action is upgrade, otherwise empty string"
 }
 `,
       input: `
 Personality: ${personalityText(personality)}
 
-Memory:
-${memory || "No memory yet."}
+Persistent memory:
+${combinedMemory || "No memory yet."}
 
 Last image prompt:
 ${lastImagePrompt || "None"}
@@ -242,6 +351,10 @@ ${message}
 
     if (!decision.action) {
       throw new Error("No action returned.");
+    }
+
+    if (decision.imagePrompt) {
+      decision.imagePrompt = sanitizeImagePrompt(decision.imagePrompt);
     }
 
     res.json(decision);
@@ -266,6 +379,9 @@ app.post("/chat", async (req, res) => {
       imageUrl = "",
       personality = "balanced"
     } = req.body || {};
+
+    const persistent = await loadPersistentMemory();
+    const combinedMemory = `${persistent.memory || ""}\n\nBrowser memory:\n${memory || ""}`.trim();
 
     const cleanMessage = String(message || "").trim();
     const cleanImageUrl = String(imageUrl || "").trim();
@@ -301,8 +417,8 @@ ${BASE_PROMPT}
 Personality:
 ${personalityText(personality)}
 
-Saved memory:
-${memory || "No saved memory yet."}
+Persistent memory:
+${combinedMemory || "No saved memory yet."}
 
 Recent conversation:
 ${historyText || "No recent conversation yet."}
@@ -348,9 +464,19 @@ app.post("/generate-image", async (req, res) => {
       return res.status(400).json({ error: "No image prompt received." });
     }
 
+    const safePrompt = sanitizeImagePrompt(cleanPrompt);
+
     const result = await client.images.generate({
       model: "gpt-image-1",
-      prompt: `${personalityText(personality)}\n\nCreate this image:\n${cleanPrompt}\n\nKeep it tasteful and non-explicit.`,
+      prompt: `
+${personalityText(personality)}
+
+Create this image:
+${safePrompt}
+
+Final safety:
+This must be safe for all audiences, non-explicit, non-sexual, fully clothed or clearly synthetic/non-human, polished sci-fi concept art.
+`,
       size: "1024x1024"
     });
 
@@ -361,7 +487,8 @@ app.post("/generate-image", async (req, res) => {
     }
 
     res.json({
-      image: `data:image/png;base64,${imageBase64}`
+      image: `data:image/png;base64,${imageBase64}`,
+      usedPrompt: safePrompt
     });
   } catch (err) {
     console.error("IMAGE ERROR:", err);
@@ -374,6 +501,7 @@ app.post("/generate-image", async (req, res) => {
 app.post("/suggest-upgrade", async (req, res) => {
   try {
     const { history = [], memory = "", personality = "balanced" } = req.body || {};
+    const persistent = await loadPersistentMemory();
 
     const historyText = Array.isArray(history)
       ? history.slice(-16).map(m => `${m.role}: ${m.content}`).join("\n")
@@ -403,8 +531,11 @@ JSON format:
       input: `
 Personality: ${personalityText(personality)}
 
-Memory:
-${memory || "No saved memory yet."}
+Persistent memory:
+${persistent.memory || "No saved memory yet."}
+
+Browser memory:
+${memory || "No browser memory."}
 
 Recent conversation:
 ${historyText || "No recent conversation yet."}
@@ -459,7 +590,7 @@ Allowed files:
 
 Rules:
 - Return COMPLETE full replacement content only for changed files.
-- Preserve chat, image generation, decision engine, memory, personality modes, export, and upgrade tools.
+- Preserve chat, image generation, decision engine, persistent memory, personality modes, export, and upgrade tools.
 - Do not remove endpoints.
 - Do not add secrets.
 - Do not create explicit adult/NSFW features.
