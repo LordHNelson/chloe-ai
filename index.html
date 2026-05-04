@@ -5,26 +5,13 @@
 <title>Chloe AI</title>
 
 <style>
-body {
-  margin:0;
-  background:#11131a;
-  color:white;
-  font-family:system-ui, sans-serif;
-}
+body { margin:0; background:#11131a; color:white; font-family:system-ui; }
 
 header {
   padding:18px;
   font-size:28px;
   font-weight:800;
   border-bottom:1px solid #2a2d3a;
-}
-
-#status {
-  float:right;
-  font-size:13px;
-  background:#222638;
-  padding:7px 12px;
-  border-radius:999px;
 }
 
 #chat {
@@ -36,40 +23,19 @@ header {
 .msg {
   max-width:84%;
   margin:10px 0;
-  padding:13px 15px;
-  border-radius:16px;
+  padding:12px;
+  border-radius:14px;
   white-space:pre-wrap;
-  line-height:1.45;
 }
 
-.user {
-  margin-left:auto;
-  background:#8b6cff;
-}
-
-.chloe {
-  margin-right:auto;
-  background:#252a3d;
-}
-
-.system {
-  margin:12px auto;
-  color:#aaa;
-  text-align:center;
-  font-size:14px;
-}
-
-.typing {
-  opacity:.75;
-  font-style:italic;
-}
+.user { margin-left:auto; background:#8b6cff; }
+.chloe { margin-right:auto; background:#252a3d; }
+.system { text-align:center; color:#aaa; }
 
 .generated-image {
   width:100%;
-  height:auto;
-  border-radius:16px;
-  margin-top:12px;
-  display:block;
+  border-radius:14px;
+  margin-top:10px;
 }
 
 #controls {
@@ -78,70 +44,40 @@ header {
   background:#151824;
 }
 
-textarea, input, select {
+textarea, input {
   width:100%;
-  box-sizing:border-box;
   margin-bottom:8px;
-  padding:12px;
-  border-radius:12px;
+  padding:10px;
+  border-radius:10px;
   border:none;
   background:#262b3d;
   color:white;
-  font-size:16px;
-}
-
-textarea {
-  min-height:80px;
 }
 
 button {
-  padding:11px 13px;
-  margin:4px 4px 4px 0;
+  padding:10px;
+  margin:4px;
   border:none;
-  border-radius:12px;
+  border-radius:10px;
   background:#8b6cff;
   color:white;
   font-weight:700;
-}
-
-button.secondary {
-  background:#262b3d;
-}
-
-button.danger {
-  background:#4b2630;
 }
 </style>
 </head>
 
 <body>
 
-<header>
-  Chloe AI
-  <span id="status">Online</span>
-</header>
+<header>Chloe AI</header>
 
 <div id="chat"></div>
 
 <div id="controls">
-  <select id="personality">
-    <option value="balanced">Balanced Chloe</option>
-    <option value="warmer">Warmer Chloe</option>
-    <option value="playful">Playful Chloe</option>
-    <option value="technical">Technical Chloe</option>
-    <option value="direct">Direct Chloe</option>
-    <option value="flirty">Flirty Chloe</option>
-  </select>
+<textarea id="message" placeholder="Talk to Chloe..."></textarea>
+<input id="imagePrompt" placeholder="Describe an image">
 
-  <textarea id="message" placeholder="Talk to Chloe..."></textarea>
-
-  <input id="imagePrompt" placeholder="Describe an image for Chloe to generate">
-
-  <button onclick="sendMessage()">Send</button>
-  <button onclick="generateImage()">Generate Image</button>
-  <button class="secondary" onclick="editMemory()">Memory</button>
-  <button class="secondary" onclick="exportChat()">Export</button>
-  <button class="danger" onclick="clearChat()">Clear</button>
+<button onclick="sendMessage()">Send</button>
+<button onclick="generateImage()">Generate Image</button>
 </div>
 
 <script>
@@ -150,49 +86,13 @@ const API = "https://chloe-ai-af3m.onrender.com";
 const chat = document.getElementById("chat");
 const messageBox = document.getElementById("message");
 const imagePromptBox = document.getElementById("imagePrompt");
-const personalityBox = document.getElementById("personality");
-const statusBox = document.getElementById("status");
 
-let history = loadHistory();
-let memory = localStorage.getItem("chloe_memory") || "";
-let personality = localStorage.getItem("chloe_personality") || "balanced";
-
-personalityBox.value = personality;
-
-personalityBox.addEventListener("change", () => {
-  personality = personalityBox.value;
-  localStorage.setItem("chloe_personality", personality);
-  addMessage("system", "Personality changed to: " + personalityBox.options[personalityBox.selectedIndex].text);
-});
-
-function loadHistory() {
-  try {
-    return JSON.parse(localStorage.getItem("chloe_history") || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveHistory() {
-  const trimmed = history.slice(-20);
-  history = trimmed;
-
-  try {
-    localStorage.setItem("chloe_history", JSON.stringify(trimmed));
-  } catch {
-    localStorage.removeItem("chloe_history");
-    history = [];
-    addMessage("system", "Storage was full, so old chat history was cleared.");
-  }
-}
+let history = [];
+let lastImagePrompt = "";
 
 function addMessage(role, text, image=null) {
   const div = document.createElement("div");
-  div.className =
-    role === "user" ? "msg user" :
-    role === "system" ? "msg system" :
-    "msg chloe";
-
+  div.className = "msg " + role;
   div.textContent = text;
 
   if (image) {
@@ -207,59 +107,12 @@ function addMessage(role, text, image=null) {
   return div;
 }
 
-async function typeIntoBubble(div, text) {
-  div.textContent = "";
-
-  const chunks = text.match(/.{1,4}/g) || [text];
-
-  for (const chunk of chunks) {
-    div.textContent += chunk;
-    chat.scrollTop = chat.scrollHeight;
-    await new Promise(r => setTimeout(r, 18));
-  }
-}
-
-function renderHistory() {
-  chat.innerHTML = "";
-  history.forEach(m => addMessage(m.role, m.content, m.image || null));
-}
-
-function buildMemoryContext() {
-  return `
-Chloe memory:
-${memory || "No saved memory yet."}
-
-Important:
-Use this memory naturally when helpful, but don't repeat it unless relevant.
-`;
-}
-
 function isImageIntent(text) {
-  return /\b(generate|create|make|draw|picture|image|photo|artwork|illustration|render)\b/i.test(text || "");
+  return /\b(generate|create|make|draw|image|picture|photo|render)\b/i.test(text);
 }
 
-function enhanceImagePrompt(prompt) {
-  const personalityStyle = {
-    balanced: "polished, cinematic, detailed, visually clear",
-    warmer: "warm lighting, emotionally rich, inviting, soft atmosphere",
-    playful: "vivid, playful, colourful, expressive, dynamic",
-    technical: "clean, precise, detailed, high-resolution, technically accurate",
-    direct: "simple, practical, realistic, clear composition",
-    flirty: "stylish, confident, elegant, subtly seductive, tasteful, non-explicit"
-  }[personalityBox.value] || "polished, cinematic, detailed";
-
-  return `
-${prompt}
-
-Style:
-${personalityStyle}
-
-Quality:
-high detail, strong composition, balanced lighting, professional finish
-
-Safety:
-tasteful, non-explicit, no nudity, no sexual content
-`;
+function isRetry(text) {
+  return /\b(again|retry|redo|try again|one more)\b/i.test(text);
 }
 
 async function sendMessage() {
@@ -267,133 +120,80 @@ async function sendMessage() {
   if (!message) return;
 
   messageBox.value = "";
-
-  history.push({ role:"user", content:message });
   addMessage("user", message);
-  saveHistory();
 
+  // 🔁 Retry last image
+  if (isRetry(message) && lastImagePrompt) {
+    await generateImageFromPrompt(lastImagePrompt);
+    return;
+  }
+
+  // 🎯 Detect image intent
   if (isImageIntent(message)) {
+    lastImagePrompt = message;
     await generateImageFromPrompt(message);
     return;
   }
 
-  statusBox.textContent = "Thinking...";
-  const bubble = addMessage("chloe", "Chloe is thinking...");
+  const bubble = addMessage("chloe", "Thinking...");
 
   try {
     const res = await fetch(API + "/chat", {
       method:"POST",
       headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({
-        message: buildMemoryContext() + "\n\nJohn says:\n" + message,
-        history,
-        memory,
-        personality: personalityBox.value
-      })
+      body: JSON.stringify({ message })
     });
 
     const data = await res.json();
-    const reply = data.reply || "No response returned.";
+    const reply = data.reply || "";
 
-    await typeIntoBubble(bubble, reply);
+    bubble.textContent = reply;
 
-    history.push({ role:"chloe", content:reply });
-    saveHistory();
+    // 🔥 If Chloe says she's generating → actually do it
+    if (/generating/i.test(reply) && lastImagePrompt) {
+      await generateImageFromPrompt(lastImagePrompt);
+    }
 
-    statusBox.textContent = "Online";
   } catch (err) {
     bubble.textContent = "Error: " + err.message;
-    statusBox.textContent = "Offline";
   }
 }
 
 async function generateImage() {
-  const prompt = imagePromptBox.value.trim() || messageBox.value.trim();
+  const prompt = imagePromptBox.value.trim();
+  if (!prompt) return;
 
-  if (!prompt) {
-    addMessage("system", "Add an image prompt first.");
-    return;
-  }
-
+  lastImagePrompt = prompt;
   await generateImageFromPrompt(prompt);
 }
 
 async function generateImageFromPrompt(prompt) {
-  const enhancedPrompt = enhanceImagePrompt(prompt);
-
-  history.push({ role:"user", content:"Generate image: " + prompt });
   addMessage("user", "Generate image: " + prompt);
-  saveHistory();
 
-  statusBox.textContent = "Generating image...";
-  const bubble = addMessage("chloe", "Creating something for you...");
+  const bubble = addMessage("chloe", "Creating image...");
 
   try {
     const res = await fetch(API + "/generate-image", {
       method:"POST",
       headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({
-        prompt: enhancedPrompt,
-        personality: personalityBox.value
-      })
+      body: JSON.stringify({ prompt })
     });
 
     const data = await res.json();
 
-    if (data.error) {
-      throw new Error(data.error);
-    }
+    if (data.error) throw new Error(data.error);
 
-    bubble.textContent = "Here’s what I made 👇";
+    bubble.textContent = "Here it is 👇";
 
     const img = document.createElement("img");
     img.src = data.image;
     img.className = "generated-image";
     bubble.appendChild(img);
 
-    history.push({
-      role:"chloe",
-      content:"Image generated.",
-      image:data.image
-    });
-
-    saveHistory();
-    statusBox.textContent = "Online";
   } catch (err) {
     bubble.textContent = "Image error: " + err.message;
-    statusBox.textContent = "Online";
   }
 }
-
-function editMemory() {
-  const updated = prompt("Chloe memory:", memory);
-
-  if (updated !== null) {
-    memory = updated;
-    localStorage.setItem("chloe_memory", memory);
-    addMessage("system", "Memory updated.");
-  }
-}
-
-function clearChat() {
-  history = [];
-  localStorage.removeItem("chloe_history");
-  renderHistory();
-}
-
-function exportChat() {
-  const text = history.map(m => `${m.role}: ${m.content}`).join("\n\n");
-
-  navigator.clipboard.writeText(text)
-    .then(() => addMessage("system", "Chat copied to clipboard."))
-    .catch(() => addMessage("system", "Could not copy chat."));
-}
-
-setInterval(() => {
-  fetch(API + "/").catch(() => {});
-}, 10 * 60 * 1000);
-
-renderHistory();
 </script>
 
 </body>
