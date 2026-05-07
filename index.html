@@ -201,6 +201,40 @@ button.galleryBtn {
   padding: 6px 0;
 }
 
+#errorMsg {
+  color: #ff6b6b;
+  margin-bottom: 8px;
+  font-size: 14px;
+  display: none;
+}
+
+.chatImage {
+  max-width: 240px;
+  max-height: 240px;
+  border-radius: 14px;
+  margin-top: 8px;
+  cursor: pointer;
+  object-fit: contain;
+  display: inline-block;
+}
+
+.image-error-placeholder {
+  width: 240px;
+  height: 160px;
+  border-radius: 14px;
+  margin-top: 8px;
+  background: #44475a;
+  color: #f8f8f2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 14px;
+  text-align: center;
+  padding: 12px;
+  user-select: none;
+  cursor: default;
+}
+
 #imageModal {
   display:none;
   position:fixed;
@@ -263,21 +297,6 @@ pre {
   margin: 0;
   font-size: 14px;
   color: #bbb;
-}
-#errorMsg {
-  color: #ff6b6b;
-  margin-bottom: 8px;
-  font-size: 14px;
-  display: none;
-}
-.chatImage {
-  max-width: 240px;
-  max-height: 240px;
-  border-radius: 14px;
-  margin-top: 8px;
-  cursor: pointer;
-  object-fit: contain;
-  display: inline-block;
 }
 </style>
 </head>
@@ -485,10 +504,6 @@ function renderGallery() {
       img.title = item.prompt || "Gallery Image";
       img.onclick = () => openGalleryImage(item);
 
-      // Remove fixed width/height or aspect-ratio CSS that forces downscaling
-      // Instead use max-width and max-height in CSS for responsiveness
-      // Already handled by CSS: max-width: 100%; max-height: 240px;
-
       card.appendChild(img);
     }
 
@@ -605,7 +620,7 @@ function addMessage(role, text, image=null) {
     textNode.textContent = text;
     div.appendChild(textNode);
 
-    // Append image inline
+    // Append image inline with error handling for broken images
     const img = document.createElement("img");
     img.src = image;
     img.className = "chatImage";
@@ -613,6 +628,15 @@ function addMessage(role, text, image=null) {
       imageModalImg.src = image;
       imageModalText.textContent = "Full image preview. Tap anywhere to close.";
       imageModal.style.display = "flex";
+    };
+    img.onerror = () => {
+      // Remove broken image
+      if (img && img.parentNode) img.parentNode.removeChild(img);
+      // Show placeholder message instead
+      const placeholder = document.createElement("div");
+      placeholder.className = "image-error-placeholder";
+      placeholder.textContent = "Image failed to load.";
+      div.appendChild(placeholder);
     };
     div.appendChild(img);
   } else {
@@ -889,6 +913,14 @@ async function generateImageFromPrompt(prompt, auto=false) {
       imageModalImg.src = data.image;
       imageModalText.textContent = "Full image preview. Tap anywhere to close.";
       imageModal.style.display = "flex";
+    };
+    img.onerror = () => {
+      // Remove broken image in bubble
+      if (img && img.parentNode) img.parentNode.removeChild(img);
+      const placeholder = document.createElement("div");
+      placeholder.className = "image-error-placeholder";
+      placeholder.textContent = "Image failed to load.";
+      bubble.appendChild(placeholder);
     };
     bubble.appendChild(img);
 
