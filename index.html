@@ -396,6 +396,7 @@ let lastUpgradeProposal = null;
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_WIDTH = 2048;
 const MAX_HEIGHT = 2048;
+const GALLERY_STORAGE_LIMIT = 10; // Limit number of saved images in gallery
 
 personalityBox.value = personality;
 
@@ -439,11 +440,12 @@ function loadGallery() {
 }
 
 function saveGallery() {
-  gallery = gallery.slice(-10);
+  gallery = gallery.slice(-GALLERY_STORAGE_LIMIT);
 
   try {
     localStorage.setItem("chloe_gallery", JSON.stringify(gallery));
   } catch {
+    // On storage error, reduce gallery size and retry
     gallery = gallery.slice(-4);
     try {
       localStorage.setItem("chloe_gallery", JSON.stringify(gallery));
@@ -457,22 +459,34 @@ function saveGallery() {
 
 // Store full images in memory cache by id
 async function addToGallery(prompt, image) {
-  const id = Date.now();
+  try {
+    const id = Date.now();
 
-  // Store the full image for session display
-  fullImageCache[id] = image;
+    // Store the full image for session display
+    fullImageCache[id] = image;
 
-  // For gallery display, store the full-resolution image URL
-  gallery.push({
-    id,
-    prompt,
-    image, // Store full resolution (data URL)
-    type: "image",
-    createdAt: new Date().toLocaleString()
-  });
+    // For gallery display, store the full-resolution image URL
+    gallery.push({
+      id,
+      prompt,
+      image, // Store full resolution (data URL)
+      type: "image",
+      createdAt: new Date().toLocaleString()
+    });
 
-  saveGallery();
-  renderGallery();
+    // Enforce storage limit
+    if (gallery.length > GALLERY_STORAGE_LIMIT) {
+      // Remove oldest images from gallery
+      gallery = gallery.slice(-GALLERY_STORAGE_LIMIT);
+    }
+
+    saveGallery();
+    renderGallery();
+
+    addMessage("system", "Image auto-saved to gallery.");
+  } catch (err) {
+    addMessage("system", "Failed to auto-save image to gallery: " + err.message);
+  }
 }
 
 function toggleGallery() {
@@ -926,6 +940,7 @@ async function generateImageFromPrompt(prompt, auto=false) {
 
     lastGeneratedImage = data.image;
 
+    // Auto-save generated image to user gallery
     await addToGallery(cleanPrompt, data.image);
 
     if (!chloeAvatar) {
